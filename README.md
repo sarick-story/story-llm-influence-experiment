@@ -10,6 +10,7 @@ The project consists of several steps:
 2. Compute influence factors for the trained model 
 3. Calculate influence scores for specific prompts
 4. Visualize and analyze the most influential training examples
+5. Preview the dataset
 
 ## Setup
 
@@ -72,6 +73,27 @@ python inspect_scores.py --scores_name prompt_scores --num_influential 5
 ```
 
 This will display the most influential training examples for each of your prompts and save a report in Markdown format.
+
+## Step 5: Preview the Dataset
+
+To preview a few entries from the OpenWebText dataset used for training, you can run the following script:
+
+```python
+from datasets import load_dataset
+
+# Load a small subset of the OpenWebText dataset
+dataset = load_dataset("openwebtext", split="train[:4]")  # Load 4 examples
+
+# Print the first few entries
+for i, entry in enumerate(dataset):
+    print(f"Entry {i+1}:")
+    print(entry["text"])
+    print("\n" + "-"*50 + "\n")
+```
+
+The huggingface datasets package handles the processing of any custom datasets we use: https://github.com/huggingface/datasets
+
+
 
 ## Understanding the Results
 
