@@ -35,7 +35,7 @@ def main():
 
     # Update the file paths to the correct location
     # The files are in influence_results/{factors_name}/factors_{factors_name}/
-    factor_path = f"influence_results/{args.factors_name}/factors_{args.factors_name}"
+    factor_path = f"influence_results/influence_results/{args.factors_name}/factors_{args.factors_name}"
     
     print(f"Looking for factors in: {factor_path}")
     

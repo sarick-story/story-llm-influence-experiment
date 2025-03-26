@@ -14,7 +14,7 @@ This was happening because the covariance matrices generated during influence an
 
 ## The Solution
 
-We implemented two key fixes:
+We implemented several key fixes:
 
 ### 1. Matrix Regularization
 
@@ -22,6 +22,7 @@ We added significant regularization to the covariance matrices by:
 - Taking the trace (sum of diagonal elements) of each matrix
 - Adding 10-20% of this value to the diagonal elements
 - Ensuring perfect symmetry by averaging each matrix with its transpose
+- Removed an invalid parameter (`pca_spectrum_smooth_factor`) that was causing errors in the eigendecomposition process
 
 This regularization prevents numerical issues by making sure the matrices are better conditioned for eigendecomposition.
 
@@ -40,12 +41,21 @@ We adjusted partitioning parameters to better match the example configuration:
 - Changed `lambda_module_partitions` from 1 to 2
 - Increased data partitions from 2 to 4
 
+### 4. Training Improvements
+
+We enhanced the model training process with:
+- **Validation Set**: Added a validation split to monitor performance on unseen data, helping prevent overfitting
+- **Increased Epochs**: Extended training from 2 to 10 epochs to allow the model to converge better
+- **Loss Curve Visualization**: Implemented graphing of training and validation loss curves to better track model progress
+- **Higher Learning Rate**: Adjusted the learning rate for better convergence
+
 ## In Simple Terms
 
 Imagine trying to balance a very tall and thin tower of blocks. The original setup was like trying to balance this tower on a windy day - it kept falling over. Our fixes were:
 1. Made the base wider (added regularization)
 2. Used stickier blocks (better numerical precision)
 3. Built several smaller, more stable towers instead of one big one (better partitioning)
+4. Took time to practice building the tower (more training epochs and better monitoring)
 
 These changes stabilized the computation enough to complete the influence analysis successfully.
 
@@ -85,3 +95,39 @@ Partially:
 ### 4. Score interpretation:
 - Score normalization: Add post-processing to normalize or clip extreme values
 - Threshold filtering: Only consider influences above a certain magnitude as significant
+
+## Addressing Oscillating Training Loss
+
+The oscillating training loss curve in our model is worth examining:
+
+### Potential causes of oscillating loss:
+
+1. **Learning rate too high**: When the learning rate is too large, optimization can bounce around the minimum rather than converge to it.
+   
+2. **Batch size issues**: Small batch sizes can introduce high variance in gradients, causing oscillation.
+   
+3. **Conflicting gradients**: Different batches may have conflicting gradient directions, particularly in complex models.
+
+4. **Unstable model architecture**: Some network structures are inherently less stable during training.
+
+### Recommended fixes:
+
+1. **Learning rate adjustments**:
+   - Reduce the base learning rate by 2-5x
+   - Implement a learning rate scheduler (cosine, step, or exponential decay)
+   - Try gradient clipping to prevent extreme updates
+
+2. **Batch size optimization**:
+   - Increase batch size if memory allows
+   - Implement gradient accumulation for effective larger batches
+   - Experiment with different batch formation strategies
+
+3. **Optimization improvements**:
+   - Try a different optimizer (AdamW often performs better than Adam for language models)
+   - Add weight decay (L2 regularization) to stabilize training
+   - Implement mixed precision training with proper scaling
+
+4. **Architectural changes**:
+   - Add layer normalization at strategic points
+   - Implement residual connections if not already present
+   - Consider a warmup phase with frozen layers

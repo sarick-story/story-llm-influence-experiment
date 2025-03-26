@@ -15,6 +15,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, default_data_colla
 from kronfluence.analyzer import Analyzer, prepare_model
 from kronfluence.utils.common.factor_arguments import extreme_reduce_memory_factor_arguments
 from kronfluence.utils.dataset import DataLoaderKwargs
+from kronfluence.utils.constants import ACTIVATION_COVARIANCE_MATRIX_NAME, GRADIENT_COVARIANCE_MATRIX_NAME
+from kronfluence.factor.eigen import perform_eigendecomposition
 
 # Set some performance options
 torch.backends.cudnn.benchmark = True
@@ -36,23 +38,29 @@ def parse_args():
     parser.add_argument("--factor_batch_size", type=int, default=4)
     parser.add_argument("--profile", action="store_true")
     parser.add_argument("--cached_dataset_path", type=str, default="./cached_tokenized_dataset.pkl")
-    parser.add_argument("--num_samples", type=int, default=1000)
+    parser.add_argument("--num_samples", type=int, default=10000)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--covariance_data_partitions", type=int, default=8)
+    parser.add_argument("--lambda_data_partitions", type=int, default=8)
+    parser.add_argument("--eigendecomposition_dtype", type=str, default="float64", 
+                        choices=["float32", "float64"])
+    parser.add_argument("--regularization_factor", type=float, default=0.25, 
+                        help="Fraction of trace to add to diagonal (0.0-1.0)")
     # Distributed training args
     parser.add_argument("--local_rank", type=int, default=0)
     parser.add_argument("--world_size", type=int, default=1)
     return parser.parse_args()
 
-def get_tokenized_dataset(tokenizer):
+def get_tokenized_dataset(tokenizer, num_samples=10000):
     """Get the tokenized dataset from cache or create it"""
-    cache_file = "./cached_tokenized_dataset.pkl"
+    cache_file = f"./cached_tokenized_dataset_{num_samples}.pkl"
     if os.path.exists(cache_file):
-        logger.info("Loading tokenized dataset from cache")
+        logger.info(f"Loading tokenized dataset from cache ({num_samples} samples)")
         with open(cache_file, "rb") as f:
             return pickle.load(f)
     else:
-        logger.info("Creating tokenized dataset from scratch")
-        dataset = load_dataset("openwebtext", split="train[:1000]")
+        logger.info(f"Creating tokenized dataset from scratch ({num_samples} samples)")
+        dataset = load_dataset("openwebtext", split=f"train[:{num_samples}]")
         
         def tokenize_function(examples):
             outputs = tokenizer(examples["text"], truncation=True, max_length=512, padding="max_length")
@@ -91,6 +99,32 @@ class LanguageModelingTask:
     
     # Placeholder methods that will be replaced
 
+def add_regularization_to_covariance(covmat, reg_factor):
+    """
+    Add regularization to a covariance matrix to improve numerical stability.
+    
+    Args:
+        covmat: The covariance matrix tensor
+        reg_factor: Value between 0 and 1, representing the fraction of the trace to add to the diagonal
+    
+    Returns:
+        Regularized covariance matrix
+    """
+    # Compute the trace
+    trace = torch.trace(covmat)
+    
+    # Compute the diagonal increment
+    avg_diag_value = trace / covmat.shape[0]
+    increment = reg_factor * avg_diag_value
+    
+    # Add to diagonal (in-place operation)
+    diag_indices = torch.arange(covmat.shape[0], device=covmat.device)
+    covmat[diag_indices, diag_indices] += increment
+    
+    logger.info(f"Added regularization: {reg_factor:.2f} * trace/dim = {increment:.6f}")
+    
+    return covmat
+
 def main():
     args = parse_args()
     env_local_rank = int(os.environ.get("LOCAL_RANK", "-1"))
@@ -103,6 +137,9 @@ def main():
     # Start initializing distributed (or single device)
     initialize_distributed(args)
 
+    # Set manual seed for reproducibility
+    torch.manual_seed(args.seed)
+    
     # Load model and tokenizer
     logger.info(f"Loading model from {args.model_path}")
     
@@ -122,7 +159,7 @@ def main():
         tokenizer.pad_token = tokenizer.eos_token
     
     # Prepare the dataset
-    train_dataset = get_tokenized_dataset(tokenizer)
+    train_dataset = get_tokenized_dataset(tokenizer, args.num_samples)
     
     # Load the custom task or fall back to default
     try:
@@ -169,16 +206,54 @@ def main():
         dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32
     )
     
-    # For smaller models, we can use simpler partitioning
+    # Apply the user's partitioning settings for improved numerical stability
     factor_args.covariance_module_partitions = 2
     factor_args.lambda_module_partitions = 2
-    factor_args.covariance_data_partitions = 4
-    factor_args.lambda_data_partitions = 4
+    factor_args.covariance_data_partitions = args.covariance_data_partitions
+    factor_args.lambda_data_partitions = args.lambda_data_partitions
     
     # Setting eigendecomposition to double precision for numerical stability
-    factor_args.eigendecomposition_dtype = torch.float64
+    if args.eigendecomposition_dtype == "float64":
+        factor_args.eigendecomposition_dtype = torch.float64
+    else:
+        factor_args.eigendecomposition_dtype = torch.float32
+    
+    # Add custom regularization function to improve numerical stability
+    if args.regularization_factor > 0:
+        logger.info(f"Setting eigenvalue regularization factor: {args.regularization_factor}")
+    
+    # Custom approach to add regularization by manually adjusting matrices after they're computed
+    # but before eigendecomposition
+    if args.regularization_factor > 0:
+        logger.info(f"Using covariance matrix regularization factor: {args.regularization_factor}")
+        
+        # We'll implement our regularization by using a custom function in the eigendecomposition step
+        orig_perform_eigendecomposition = torch.no_grad()(perform_eigendecomposition)
+        
+        @torch.no_grad()
+        def regularized_eigendecomposition(covariance_factors, model, state, factor_args, disable_tqdm=False):
+            # Add regularization to covariance matrices before eigendecomposition
+            for module_name in covariance_factors[ACTIVATION_COVARIANCE_MATRIX_NAME]:
+                act_covmat = covariance_factors[ACTIVATION_COVARIANCE_MATRIX_NAME][module_name]
+                grad_covmat = covariance_factors[GRADIENT_COVARIANCE_MATRIX_NAME][module_name]
+                
+                # Compute trace and add regularization
+                act_covmat = add_regularization_to_covariance(act_covmat, args.regularization_factor)
+                grad_covmat = add_regularization_to_covariance(grad_covmat, args.regularization_factor)
+                
+                # Update the covariance matrices
+                covariance_factors[ACTIVATION_COVARIANCE_MATRIX_NAME][module_name] = act_covmat
+                covariance_factors[GRADIENT_COVARIANCE_MATRIX_NAME][module_name] = grad_covmat
+            
+            # Continue with the original eigendecomposition implementation
+            return orig_perform_eigendecomposition(covariance_factors, model, state, factor_args, disable_tqdm)
+        
+        # Replace the eigendecomposition function in the imported namespace
+        sys.modules['kronfluence.factor.eigen'].perform_eigendecomposition = regularized_eigendecomposition
     
     logger.info(f"Computing influence factors with strategy: {args.factor_strategy}")
+    logger.info(f"Using data partitions: covariance={args.covariance_data_partitions}, lambda={args.lambda_data_partitions}")
+    logger.info(f"Using eigendecomposition dtype: {args.eigendecomposition_dtype}")
     
     # Fit the factors
     analyzer.fit_all_factors(
