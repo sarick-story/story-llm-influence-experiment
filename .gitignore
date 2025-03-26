@@ -1,0 +1,52 @@
+# Model directory
+tiny_lm_model/
+
+# Results directory
+influence_results/
+
+# Cached data
+*.pkl
+cached_tokenized_dataset.pkl
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IDE related
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Tensor files and model weights
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.model
+
+# Large data files
+*.csv
+*.json.gz
+*.jsonl
