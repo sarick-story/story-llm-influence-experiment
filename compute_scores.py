@@ -13,8 +13,8 @@ from kronfluence.analyzer import Analyzer, prepare_model
 from kronfluence.utils.common.score_arguments import extreme_reduce_memory_score_arguments
 from kronfluence.utils.dataset import DataLoaderKwargs
 
-# Import our custom task
-from fit_factors import LanguageModelingTask
+# Import our custom task from task.py instead of fit_factors.py
+from task import LanguageModelingTask
 
 torch.backends.cudnn.benchmark = True
 if torch.cuda.is_available():
@@ -77,7 +77,10 @@ def get_tokenized_dataset(tokenizer, split="train[:1000]"):
     
     # Tokenize
     def tokenize_function(examples):
-        return tokenizer(examples["text"], truncation=True, max_length=512, padding="max_length")
+        outputs = tokenizer(examples["text"], truncation=True, max_length=512, padding="max_length")
+        # Add labels for causal language modeling (same as input_ids)
+        outputs["labels"] = outputs["input_ids"].copy()
+        return outputs
     
     tokenized_dataset = dataset.map(tokenize_function, batched=True, remove_columns=["text"])
     tokenized_dataset = tokenized_dataset.with_format("torch")
@@ -114,7 +117,10 @@ def create_prompt_dataset(tokenizer, prompts_file):
     
     # Tokenize the dataset
     def tokenize_function(examples):
-        return tokenizer(examples["text"], truncation=True, max_length=512, padding="max_length")
+        outputs = tokenizer(examples["text"], truncation=True, max_length=512, padding="max_length")
+        # Add labels for causal language modeling (same as input_ids)
+        outputs["labels"] = outputs["input_ids"].copy()
+        return outputs
     
     tokenized_dataset = dataset.map(tokenize_function, batched=True, remove_columns=["text"])
     tokenized_dataset = tokenized_dataset.with_format("torch")
@@ -142,7 +148,7 @@ def main():
     query_dataset = create_prompt_dataset(tokenizer, args.prompts_file)
     
     # Define task and prepare model
-    task = LanguageModelingTask(tokenizer)
+    task = LanguageModelingTask()
     model = prepare_model(model, task)
     
     # Set up accelerator
@@ -152,7 +158,7 @@ def main():
     
     # Create the analyzer
     analyzer = Analyzer(
-        analysis_name="tiny_lm_influence",
+        analysis_name=f"influence_results/{args.factors_name}",
         model=model,
         task=task,
         profile=args.profile,

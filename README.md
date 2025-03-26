@@ -47,6 +47,16 @@ torchrun --standalone --nnodes=1 --nproc-per-node=1 fit_factors.py \
 
 This will compute the factors and save them for later use in influence score calculation.
 
+## Step 2b: Visualize Influence Factors (Optional)
+
+Visualize the computed influence factors to understand their distribution:
+
+```bash
+python inspect_factors.py --factors_name tiny_lm_factors --layer_num 11
+```
+
+This will generate heatmaps and eigenvalue plots for the last layer's MLP modules, showing the distribution of influence factors. You can specify a different layer with the `--layer_num` parameter.
+
 ## Step 3: Compute Influence Scores
 
 Create a file `prompts.json` with your queries (or use the provided sample), then compute influence scores:
@@ -93,8 +103,6 @@ for i, entry in enumerate(dataset):
 
 The huggingface datasets package handles the processing of any custom datasets we use: https://github.com/huggingface/datasets
 
-
-
 ## Understanding the Results
 
 For each prompt, the analysis will show:
@@ -103,6 +111,25 @@ For each prompt, the analysis will show:
 - The top negative influences (training examples that conflicted with the given response)
 
 The influence score indicates the strength of the connection between a training example and the model's output for a given prompt.
+
+## Implementation Details
+
+### Custom Task Definition
+
+The project uses custom task definitions in `task.py` to tell Kronfluence how to:
+- Calculate losses for the language model
+- Measure influence on model outputs
+- Track specific modules within the model's architecture
+
+The implementation focuses on the MLP layers of the GPT-Neo model, which are typically the most influential for language generation tasks.
+
+### Visualization Tools
+
+The `inspect_factors.py` script provides visualization tools to analyze:
+- The lambda matrices that encode influence relationships
+- The distribution of eigenvalues that determine influence strength
+
+These visualizations can help identify patterns in how the model learns from different examples.
 
 ## Customization
 
