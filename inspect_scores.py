@@ -41,7 +41,7 @@ def main():
     logger.info(f"Loading scores: {args.scores_name}")
     try:
         # Use static method instead of creating an Analyzer instance
-        scores_path = f"./influence_results/tiny_lm_influence/scores_{args.scores_name}/pairwise_scores.safetensors"
+        scores_path = f"./influence_results/influence_results/tiny_lm_factors/scores_{args.scores_name}/pairwise_scores.safetensors"
         scores = Analyzer.load_file(scores_path)["all_modules"]
         logger.info(f"Scores shape: {scores.shape}")
     except Exception as e:
