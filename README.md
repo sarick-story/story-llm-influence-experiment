@@ -6,11 +6,15 @@ This project demonstrates how to train a small language model from scratch and t
 
 The project consists of several steps:
 
-1. Train a small GPT-Neo (125M) model on a subset of OpenWebText
+1. Train a TinyLlama-1b model on a subset of OpenWebText
 2. Compute influence factors for the trained model 
 3. Calculate influence scores for specific prompts
 4. Visualize and analyze the most influential training examples
 5. Preview the dataset
+
+## Hardware Requirements
+
+This project is best run on a machine with at least one NVIDIA A100 GPU (or equivalent) due to the memory requirements of training and analyzing the TinyLlama-1b model.
 
 ## Setup
 
@@ -20,88 +24,91 @@ Install the required packages:
 pip install -r requirements.txt
 ```
 
-## Step 1: Train the Model
+## Using tmux for Long-Running Tasks
 
-Train a small language model on a subset of OpenWebText:
+Since many of the tasks in this project can take hours to complete, it's recommended to use tmux to manage your sessions:
+
+### Installing tmux
+
+On Ubuntu/Debian:
+```bash
+sudo apt-get update && sudo apt-get install -y tmux
+```
+
+On MacOS:
+```bash
+brew install tmux
+```
+
+### Using tmux
+
+1. Start a new tmux session:
+```bash
+tmux new -s llm_influence
+```
+
+2. Run your commands within the tmux session.
+
+3. To detach from the session without stopping it:
+Press `Ctrl+b` followed by `d`
+
+4. To reattach to an existing session:
+```bash
+tmux attach-session -t llm_influence
+```
+
+5. To list all sessions:
+```bash
+tmux ls
+```
+### Monitoring with nvitop
+
+To monitor GPU usage during your tasks, you can use nvitop. Run the following command in a separate terminal:
 
 ```bash
-python train.py
+nvitop --colorful
 ```
 
-This will train a GPT-Neo-125M model on 1000 examples from OpenWebText and save it to `./tiny_lm_model`.
+## Running the Complete Analysis
 
-## Step 2: Compute Influence Factors
-
-Compute the EKFAC influence factors for the trained model:
+The entire analysis pipeline can be run using a single script:
 
 ```bash
-# For a single GPU
-python fit_factors.py --factors_name tiny_lm_factors --factor_strategy ekfac --factor_batch_size 4
-
-# With torchrun for distributed training
-torchrun --standalone --nnodes=1 --nproc-per-node=1 fit_factors.py \
-    --factors_name tiny_lm_factors \
-    --factor_strategy ekfac \
-    --factor_batch_size 4
+bash run_all_analysis.sh
 ```
 
-This will compute the factors and save them for later use in influence score calculation.
+This script will:
+1. Train the TinyLlama-1b model
+2. Compute influence factors
+3. Visualize factor distributions
+4. Calculate influence scores for provided prompts
+5. Generate an analysis report
 
-## Step 2b: Visualize Influence Factors (Optional)
+You can monitor the progress in real-time, and all outputs are logged to files for later review.
 
-Visualize the computed influence factors to understand their distribution:
+## Step-by-Step Process
 
-```bash
-python inspect_factors.py --factors_name tiny_lm_factors --layer_num 11
-```
+The following sections detail what happens in each step of the analysis pipeline.
 
-This will generate heatmaps and eigenvalue plots for the last layer's MLP modules, showing the distribution of influence factors. You can specify a different layer with the `--layer_num` parameter.
+### Step 1: Train the Model
 
-## Step 3: Compute Influence Scores
+The script first trains the TinyLlama-1b model on a subset of OpenWebText. This is done by running `train.py`, which trains the model on examples from OpenWebText and saves it to the configured model path.
 
-Create a file `prompts.json` with your queries (or use the provided sample), then compute influence scores:
+### Step 2: Compute Influence Factors
 
-```bash
-# For a single GPU
-python compute_scores.py --factors_name tiny_lm_factors --scores_name prompt_scores --query_gradient_rank 64
+Next, the script computes the EKFAC influence factors for the trained model. This involves analyzing how different parts of the model contribute to its predictions.
 
-# With torchrun for distributed training
-torchrun --standalone --nnodes=1 --nproc-per-node=1 compute_scores.py \
-    --factors_name tiny_lm_factors \
-    --scores_name prompt_scores \
-    --query_gradient_rank 64
-```
+### Step 3: Visualize Influence Factors
 
-This will calculate how much each training example influenced the model's responses to your prompts.
+The script generates visualizations of the computed influence factors to help understand their distribution. This produces heatmaps and eigenvalue plots for selected layers' MLP modules.
 
-## Step 4: Analyze the Results
+### Step 4: Compute Influence Scores
 
-Inspect the influence scores to see which training examples had the most impact:
+The script then calculates how much each training example influenced the model's responses to the prompts defined in `prompts.json`.
 
-```bash
-python inspect_scores.py --scores_name prompt_scores --num_influential 5
-```
+### Step 5: Analyze the Results
 
-This will display the most influential training examples for each of your prompts and save a report in Markdown format.
-
-## Step 5: Preview the Dataset
-
-To preview a few entries from the OpenWebText dataset used for training, you can run the following script:
-
-```python
-from datasets import load_dataset
-
-# Load a small subset of the OpenWebText dataset
-dataset = load_dataset("openwebtext", split="train[:4]")  # Load 4 examples
-
-# Print the first few entries
-for i, entry in enumerate(dataset):
-    print(f"Entry {i+1}:")
-    print(entry["text"])
-    print("\n" + "-"*50 + "\n")
-```
-
-The huggingface datasets package handles the processing of any custom datasets we use: https://github.com/huggingface/datasets
+Finally, the script generates a report showing the most influential training examples for each of your prompts, saved in Markdown format.
 
 ## Understanding the Results
 
@@ -119,9 +126,9 @@ The influence score indicates the strength of the connection between a training 
 The project uses custom task definitions in `task.py` to tell Kronfluence how to:
 - Calculate losses for the language model
 - Measure influence on model outputs
-- Track specific modules within the model's architecture
+- Track specific modules within the TinyLlama-1b model's architecture
 
-The implementation focuses on the MLP layers of the GPT-Neo model, which are typically the most influential for language generation tasks.
+The implementation focuses on the MLP layers of the model, which are typically the most influential for language generation tasks.
 
 ### Visualization Tools
 
@@ -133,10 +140,12 @@ These visualizations can help identify patterns in how the model learns from dif
 
 ## Customization
 
-- Modify `prompts.json` to analyze different queries
-- Adjust the number of training examples in `train.py` 
-- Try different factor strategies (`ekfac`, `kfac`, or `diagfisher`)
-- Experiment with different rank values for the query gradient approximation
+You can customize the analysis by:
+
+- Modifying `prompts.json` to analyze different queries
+- Adjusting configuration variables in `run_all_analysis.sh`
+- Trying different factor strategies (`ekfac`, `kfac`, or `diagfisher`)
+- Experimenting with different rank values for the query gradient approximation
 
 ## Requirements
 
@@ -146,4 +155,5 @@ The main requirements are:
 - Transformers
 - Datasets
 - Kronfluence
-- Accelerate 
+- Accelerate
+- nvitop (for monitoring GPU usage) 

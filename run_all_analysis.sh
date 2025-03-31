@@ -21,6 +21,17 @@ echo "Scores name: $SCORES_NAME"
 echo "Dataset: $DATASET_NAME (using $NUM_SAMPLES samples)"
 echo ""
 
+# Step 0: Train the model
+echo "=== Step 0: Training the model ==="
+echo "This may take some time depending on your hardware."
+echo "Started at: $(date)"
+
+python train.py \
+  2>&1 | tee training_output.log
+
+echo "Model training completed at: $(date)"
+echo ""
+
 # Step 1: Fit influence factors
 echo "=== Step 1: Computing influence factors ==="
 echo "This may take several hours depending on your hardware."
