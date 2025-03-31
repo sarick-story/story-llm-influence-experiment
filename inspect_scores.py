@@ -4,6 +4,9 @@ import logging
 import os
 import numpy as np
 from datasets import load_dataset
+import torch
+import glob
+from pathlib import Path
 
 from kronfluence.analyzer import Analyzer
 
@@ -13,7 +16,7 @@ def parse_args():
     parser.add_argument(
         "--scores_name",
         type=str,
-        default="prompt_scores",
+        default="tinyllama_prompt_scores",  # Updated default to match your computed scores
         help="Name of the scores to inspect.",
     )
     parser.add_argument(
@@ -32,28 +35,109 @@ def parse_args():
 
     return args
 
+def find_available_scores():
+    """Find all available score files in the influence_results directory."""
+    base_path = "./influence_results/influence_results/scores_*"
+    
+    logger = logging.getLogger(__name__)
+    available_scores = []
+    for path in glob.glob(base_path):
+        if os.path.isdir(path) and os.path.exists(os.path.join(path, "pairwise_scores.safetensors")):
+            # Get the name without removing "scores_" prefix
+            score_name = os.path.basename(path)
+            logger.debug(f"Found score directory: {score_name}")
+            # Now remove the "scores_" prefix for the actual score name
+            score_name = score_name.replace("scores_", "")
+            available_scores.append(score_name)
+    
+    return available_scores
+
 def main():
     args = parse_args()
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
     
-    # Load the scores
-    logger.info(f"Loading scores: {args.scores_name}")
-    try:
-        # Use static method instead of creating an Analyzer instance
-        scores_path = f"./influence_results/influence_results/tiny_lm_factors/scores_{args.scores_name}/pairwise_scores.safetensors"
-        scores = Analyzer.load_file(scores_path)["all_modules"]
-        logger.info(f"Scores shape: {scores.shape}")
-    except Exception as e:
-        logger.error(f"Error loading scores: {e}")
+    # Hardcoded approach - try the path directly first
+    scores_path = f"./influence_results/influence_results/scores_{args.scores_name}/pairwise_scores.safetensors"
+    logger.info(f"Trying to load scores directly from: {scores_path}")
+    
+    scores = None
+    if os.path.exists(scores_path):
+        try:
+            scores = Analyzer.load_file(scores_path)["all_modules"]
+            # Convert to float32 to ensure compatibility with numpy
+            scores = scores.to(torch.float32)
+            logger.info(f"Successfully loaded scores from {scores_path}")
+            logger.info(f"Scores shape: {scores.shape}")
+        except Exception as e:
+            logger.error(f"Error loading scores from {scores_path}: {e}")
+    
+    # If direct path didn't work, fall back to detecting available scores
+    if scores is None:
+        # Find all available scores
+        available_scores = find_available_scores()
+        if available_scores:
+            logger.info(f"Found available scores: {', '.join(available_scores)}")
+        else:
+            logger.warning("No score files found. Make sure you've computed scores first.")
+        
+        # Check if requested scores exist
+        if args.scores_name not in available_scores:
+            logger.error(f"Requested scores '{args.scores_name}' not found in available scores.")
+            if available_scores:
+                logger.info(f"Available scores: {', '.join(available_scores)}")
+                # Try to use the first available score instead
+                logger.info(f"Falling back to '{available_scores[0]}'")
+                args.scores_name = available_scores[0]
+            else:
+                logger.error("No scores available. Please compute scores first.")
+                return
+        
+        # Try to load scores from the fallback path
+        scores_path = f"./influence_results/influence_results/scores_{args.scores_name}/pairwise_scores.safetensors"
+        logger.info(f"Trying to load scores from fallback path: {scores_path}")
+        if os.path.exists(scores_path):
+            try:
+                scores = Analyzer.load_file(scores_path)["all_modules"]
+                # Convert to float32 to ensure compatibility with numpy
+                scores = scores.to(torch.float32)
+                logger.info(f"Successfully loaded scores from {scores_path}")
+                logger.info(f"Scores shape: {scores.shape}")
+            except Exception as e:
+                logger.error(f"Error loading scores from {scores_path}: {e}")
+    
+    if scores is None:
+        # Last desperate attempt - try to load the file we know exists from the terminal output
+        absolute_path = "/root/training_run/story-llm-influence-experiment/influence_results/influence_results/scores_tinyllama_prompt_scores_all_layers/pairwise_scores.safetensors"
+        logger.info(f"Last attempt - trying absolute path: {absolute_path}")
+        if os.path.exists(absolute_path):
+            try:
+                scores = Analyzer.load_file(absolute_path)["all_modules"]
+                # Convert to float32 to ensure compatibility with numpy
+                scores = scores.to(torch.float32)
+                logger.info(f"Successfully loaded scores from {absolute_path}")
+                logger.info(f"Scores shape: {scores.shape}")
+            except Exception as e:
+                logger.error(f"Error loading scores from {absolute_path}: {e}")
+    
+    if scores is None:
+        logger.error("Failed to load scores from any location.")
         return
     
     # Load prompts
-    with open(args.prompts_file, 'r') as f:
-        prompts = json.load(f)
+    try:
+        with open(args.prompts_file, 'r') as f:
+            prompts = json.load(f)
+    except Exception as e:
+        logger.error(f"Error loading prompts file: {e}")
+        return
     
     # Load dataset to get texts of influential examples
-    dataset = load_dataset("openwebtext", split="train[:1000]")
+    try:
+        dataset = load_dataset("Elriggs/openwebtext-100k", split="train[:10000]")
+    except Exception as e:
+        logger.error(f"Error loading dataset: {e}")
+        return
     
     # For each prompt, find the most influential training examples
     for prompt_idx, prompt_data in enumerate(prompts):

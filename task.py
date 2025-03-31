@@ -51,21 +51,17 @@ class LanguageModelingTask(Task):
         return F.cross_entropy(logits, shift_labels, ignore_index=-100, reduction="sum")
 
     def get_influence_tracked_modules(self) -> List[str]:
+        """Return a list of module names to track for influence analysis."""
         total_modules = []
-
-        # For GPT-Neo-125M, we have fewer layers (12 instead of 32)
-        # Uncomment for tracking attention layers
-        # for i in range(12):
-        #     total_modules.append(f"transformer.h.{i}.attn.attention.q_proj")
-        #     total_modules.append(f"transformer.h.{i}.attn.attention.k_proj")
-        #     total_modules.append(f"transformer.h.{i}.attn.attention.v_proj")
-        #     total_modules.append(f"transformer.h.{i}.attn.attention.out_proj")
-
-        # Track MLP layers
-        for i in range(12):
-            total_modules.append(f"transformer.h.{i}.mlp.c_fc")
-            total_modules.append(f"transformer.h.{i}.mlp.c_proj")
-
+        
+        # Track ALL layers in the TinyLlama model (22 layers)
+        # This matches the example's approach of tracking all MLP layers
+        for i in range(22):
+            # Track MLP components only, as in the example
+            total_modules.append(f"model.layers.{i}.mlp.gate_proj")
+            total_modules.append(f"model.layers.{i}.mlp.up_proj")
+            total_modules.append(f"model.layers.{i}.mlp.down_proj")
+        
         return total_modules
 
     def get_attention_mask(self, batch: BATCH_TYPE) -> torch.Tensor:
