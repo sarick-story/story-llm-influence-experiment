@@ -85,3 +85,29 @@ Partially:
 ### 4. Score interpretation:
 - Score normalization: Add post-processing to normalize or clip extreme values
 - Threshold filtering: Only consider influences above a certain magnitude as significant
+
+## Code Organization Lessons
+
+### Modular Structure
+
+We refactored the codebase to use a modular structure with the following components:
+- `modules/training/`: Contains model training functionality
+- `modules/analysis/factors/`: Contains influence factor computation and inspection
+- `modules/analysis/scores/`: Contains influence score computation and inspection
+- `modules/evaluation/`: Contains model evaluation functionality
+
+### Shared Core Components
+
+We found that some components are used across multiple modules and need special attention:
+- The `task.py` file defines the `LanguageModelingTask` class, which is critical for both factor computation and score computation
+- To maintain modularity while avoiding duplication, we created copies of `task.py` in both:
+  - `modules/analysis/factors/task.py`
+  - `modules/analysis/scores/task.py`
+- The respective `__init__.py` files in each module expose these classes to make them importable from parent modules
+
+### Import Strategies
+
+When organizing a complex machine learning codebase:
+1. Use relative imports within a module (e.g., `from .task import LanguageModelingTask`)
+2. Expose important classes and functions in the module's `__init__.py` file
+3. When in doubt about whether a component should be shared or duplicated, favor duplication first and refactor to shared code later once the dependencies are clear

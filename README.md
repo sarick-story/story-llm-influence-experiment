@@ -1,16 +1,20 @@
 # Small Language Model Influence Analysis
 
-This project demonstrates how to train a small language model from scratch and then use [Kronfluence](https://github.com/amorthryn/kronfluence) to analyze the influence of training data on model outputs.
+This project demonstrates how to train a small language model from scratch and then use [Kronfluence](https://github.com/amorthryn/kronfluence) to analyze the influence of training data on model outputs. It also includes a comprehensive evaluation framework that combines custom influence-based metrics with standardized benchmarks from [OLMES](https://github.com/allenai/olmes).
 
 ## Overview
 
-The project consists of several steps:
+The project consists of several components:
 
-1. Train a TinyLlama-1b model on a subset of OpenWebText
-2. Compute influence factors for the trained model 
-3. Calculate influence scores for specific prompts
-4. Visualize and analyze the most influential training examples
-5. Preview the dataset
+1. **Training**: Train a TinyLlama-1b model on a subset of OpenWebText or patent data
+2. **Influence Analysis**:
+   - Compute influence factors for the trained model
+   - Calculate influence scores for specific prompts
+   - Visualize and analyze the most influential training examples
+3. **Model Evaluation**:
+   - Custom evaluation with BLEU, ROUGE metrics and influence analysis
+   - Standardized benchmarks using OLMES (ARC, MMLU, GSM8K, TruthfulQA)
+   - Combined evaluation reporting
 
 ## Hardware Requirements
 
@@ -18,10 +22,26 @@ This project is best run on a machine with at least one NVIDIA A100 GPU (or equi
 
 ## Setup
 
+### Install Dependencies
+
 Install the required packages:
 
 ```bash
 pip install -r requirements.txt
+```
+
+### OLMES Setup
+
+OLMES is automatically installed by the requirements.txt file, but if you want to install it manually, you can do:
+
+```bash
+# Clone the OLMES repository
+git clone https://github.com/allenai/olmes.git
+
+# Install OLMES
+cd olmes
+pip install -e .
+cd ..
 ```
 
 ## Using tmux for Long-Running Tasks
@@ -57,10 +77,6 @@ Press `Ctrl+b` followed by `d`
 tmux attach-session -t llm_influence
 ```
 
-5. To list all sessions:
-```bash
-tmux ls
-```
 ### Monitoring with nvitop
 
 To monitor GPU usage during your tasks, you can use nvitop. Run the following command in a separate terminal:
@@ -69,55 +85,115 @@ To monitor GPU usage during your tasks, you can use nvitop. Run the following co
 nvitop --colorful
 ```
 
-## Running the Complete Analysis
+## Centralized Configuration
 
-The entire analysis pipeline can be run using a single script:
+All configuration parameters are now centralized in the `config.yaml` file. This includes:
+
+- Model paths and names
+- Dataset configurations
+- Output directories
+- Factor computation settings
+- Evaluation parameters
+
+You can modify this file to customize the behavior of the scripts.
+
+## Running the Framework
+
+### Using the Simple Wrapper
+
+A simple wrapper script `run.py` is provided for common operations:
 
 ```bash
-bash run_all_analysis.sh
+# Train the model from scratch
+python run.py train
+
+# Run the full analysis pipeline (train, factors, scores, inspection)
+python run.py analysis
+
+# Compute influence factors for the trained model
+python run.py factors
+
+# Compute influence scores for the prompts
+python run.py scores
+
+# Run both custom and OLMES evaluations
+python run.py evaluate
+
+# Run just the custom evaluation
+python run.py custom-eval
+
+# Run just the OLMES evaluation
+python run.py olmes-eval
+
+# Use a custom config file
+python run.py --config custom.yaml train
 ```
 
-This script will:
-1. Train the TinyLlama-1b model
-2. Compute influence factors
-3. Visualize factor distributions
-4. Calculate influence scores for provided prompts
-5. Generate an analysis report
+### Using the Main Script Directly
 
-You can monitor the progress in real-time, and all outputs are logged to files for later review.
+For more flexibility, you can use the main script directly:
 
-## Step-by-Step Process
+```bash
+# Train the model
+python main.py --config config.yaml train
 
-The following sections detail what happens in each step of the analysis pipeline.
+# Compute influence factors
+python main.py --config config.yaml compute_factors
 
-### Step 1: Train the Model
+# Inspect influence factors for a specific layer
+python main.py --config config.yaml inspect_factors --layer 21
 
-The script first trains the TinyLlama-1b model on a subset of OpenWebText. This is done by running `train.py`, which trains the model on examples from OpenWebText and saves it to the configured model path.
+# Compute influence scores
+python main.py --config config.yaml compute_scores
 
-### Step 2: Compute Influence Factors
+# Run evaluation
+python main.py --config config.yaml evaluate --type all/custom/olmes
 
-Next, the script computes the EKFAC influence factors for the trained model. This involves analyzing how different parts of the model contribute to its predictions.
-
-### Step 3: Visualize Influence Factors
-
-The script generates visualizations of the computed influence factors to help understand their distribution. This produces heatmaps and eigenvalue plots for selected layers' MLP modules.
-
-### Step 4: Compute Influence Scores
-
-The script then calculates how much each training example influenced the model's responses to the prompts defined in `prompts.json`.
-
-### Step 5: Analyze the Results
-
-Finally, the script generates a report showing the most influential training examples for each of your prompts, saved in Markdown format.
+# Run the full analysis pipeline
+python main.py --config config.yaml run_full_analysis
+```
 
 ## Understanding the Results
 
-For each prompt, the analysis will show:
+### Custom Evaluation Results
 
-- The top positive influences (training examples that helped the model produce the given response)
-- The top negative influences (training examples that conflicted with the given response)
+The custom evaluation focuses on comparing the base and fine-tuned models using standard NLP metrics and influence analysis:
 
-The influence score indicates the strength of the connection between a training example and the model's output for a given prompt.
+- `comparison_results/model_comparison.csv`: Detailed comparison of both models
+- `comparison_results/model_comparison_summary.csv`: Summary statistics
+- `comparison_results/model_comparison_chart.png`: Visualization of model performance
+- `comparison_results/influential_examples.txt`: Analysis of training examples that influenced the fine-tuned model's answers
+
+### OLMES Evaluation Results
+
+The OLMES evaluation provides standardized benchmark results:
+
+- `olmes_results/run_*/task_model_scores.json`: Raw benchmark scores
+- Various logs and detailed task results in the run directory
+
+### Combined Results
+
+The combined evaluation provides a comprehensive view:
+
+- `combined_evaluation_results/combined_evaluation_report.md`: Comprehensive report combining both evaluations
+- `combined_evaluation_results/combined_improvements.png`: Visualization comparing improvements across both evaluation methods
+
+## Project Structure
+
+The project is organized into modules:
+
+- `modules/training/`: Model training functionality
+- `modules/analysis/`: Influence analysis (factors and scores)
+- `modules/evaluation/`: Evaluation framework (custom, OLMES, reporting)
+- `main.py`: Central orchestrator for all operations
+- `run.py`: Simple wrapper for common operations
+- `config.yaml`: Centralized configuration
+
+## Customization
+
+- Modify `config.yaml` to customize the behavior of the scripts
+- Add new prompts to `prompts.json` to evaluate different queries
+- Add new tasks to the OLMES configuration in `config.yaml`
 
 ## Implementation Details
 
