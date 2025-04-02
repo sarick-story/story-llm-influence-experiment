@@ -26,10 +26,14 @@ def get_dataset(config, dataset_type='main'):
     """Load and prepare dataset for score computation."""
     # We now use the same dataset for all operations
     dataset_name = config['dataset']['name']
-    num_samples = config['dataset']['num_samples']
+    # Use analysis_samples instead of num_samples for influence score computation
+    num_samples = config['dataset'].get('analysis_samples', config['dataset']['num_samples'])
     max_length = config['general']['max_length']
     
-    logger.info(f"Loading dataset: {dataset_name} (samples: {num_samples})")
+    # Get the text column name from config or default to common options
+    text_column = config['dataset'].get('text_column')
+    
+    logger.info(f"Loading dataset for analysis: {dataset_name} (samples: {num_samples})")
     
     if num_samples > 0:
         dataset = load_dataset(dataset_name, split=f"train[:{num_samples}]")
@@ -51,12 +55,17 @@ def get_dataset(config, dataset_type='main'):
     def tokenize_function(examples):
         # Try to find the appropriate text column
         text_field = None
-        if 'text' in column_names:
+        if text_column and text_column in column_names:
+            # Use the configured text column if it exists
+            text_field = text_column
+        elif 'text' in column_names:
             text_field = 'text'
         elif 'description' in column_names:
             text_field = 'description'
         else:
             text_field = column_names[0]  # Fall back to the first column
+        
+        logger.info(f"Using '{text_field}' as the text column")
         
         # Tokenize the text
         results = tokenizer(
@@ -157,6 +166,21 @@ def compute_scores(config, use_generated_answers=False):
         factors_name = config['factors']['all_layers_name']
         scores_name = config['scores']['all_layers_name']
     
+    # Get layer configuration
+    layers_config = config['factors'].get('layers', {'mode': 'all'})
+    layer_mode = layers_config.get('mode', 'all')
+    
+    # Build output directory paths
+    factors_dir = os.path.join(
+        config['output']['influence_results'], 
+        config['factors'].get('output_dir', 'factors')
+    )
+    scores_dir = os.path.join(
+        config['output']['influence_results'], 
+        config['scores'].get('output_dir', 'scores')
+    )
+    os.makedirs(scores_dir, exist_ok=True)
+    
     query_gradient_rank = config['scores']['query_gradient_rank']
     train_batch_size = config['scores']['train_batch_size']
     use_margin = False  # Default to standard cross-entropy
@@ -167,8 +191,9 @@ def compute_scores(config, use_generated_answers=False):
     
     logger.info(f"Starting score computation at {start_datetime}")
     logger.info(f"Model: {model_path}")
-    logger.info(f"Factors: {factors_name}")
-    logger.info(f"Scores: {scores_name}")
+    logger.info(f"Factors: {factors_name} (in {factors_dir})")
+    logger.info(f"Scores: {scores_name} (will save to {scores_dir})")
+    logger.info(f"Layer mode: {layer_mode}")
     logger.info(f"Using generated answers: {use_generated_answers}")
     
     # Load the model
@@ -211,7 +236,7 @@ def compute_scores(config, use_generated_answers=False):
     
     # Create analyzer
     analyzer = Analyzer(
-        analysis_name="influence_results",
+        analysis_name=scores_dir,
         model=model,
         task=task,
         profile=False,
@@ -224,6 +249,22 @@ def compute_scores(config, use_generated_answers=False):
         pin_memory=True
     )
     analyzer.set_dataloader_kwargs(dataloader_kwargs)
+    
+    # Apply layer selection based on config
+    if layer_mode == 'specific':
+        specific_layers = layers_config.get('specific', [0, 6, 11])
+        logger.info(f"Computing scores for specific layers: {specific_layers}")
+        analyzer.set_modules([f"model.layers.{i}" for i in specific_layers])
+    elif layer_mode == 'range':
+        start = layers_config.get('range', {}).get('start', 0)
+        end = layers_config.get('range', {}).get('end', 11)
+        step = layers_config.get('range', {}).get('step', 1)
+        layer_range = list(range(start, end + 1, step))
+        logger.info(f"Computing scores for layers in range: {start}-{end} (step={step})")
+        analyzer.set_modules([f"model.layers.{i}" for i in layer_range])
+    else:
+        # All layers (default)
+        logger.info("Computing scores for all layers")
     
     # Configure score arguments
     rank = query_gradient_rank if query_gradient_rank != -1 else None

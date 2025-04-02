@@ -51,6 +51,11 @@ def setup_logging():
 
 def create_output_directories(config):
     """Create output directories defined in the configuration."""
+    # Create base results directory
+    base_dir = Path(config['output']['base_dir'])
+    base_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Create main output directories
     for directory in [
         config['output']['influence_results'],
         config['output']['comparison_results'],
@@ -58,6 +63,22 @@ def create_output_directories(config):
         config['output']['combined_results']
     ]:
         Path(directory).mkdir(parents=True, exist_ok=True)
+    
+    # Create additional subdirectories
+    # Factors and scores directories
+    Path(os.path.join(config['output']['influence_results'], config['factors'].get('output_dir', 'factors'))).mkdir(parents=True, exist_ok=True)
+    Path(os.path.join(config['output']['influence_results'], config['scores'].get('output_dir', 'scores'))).mkdir(parents=True, exist_ok=True)
+    
+    # Generated answers directory
+    generated_dir = config['evaluation'].get('generated_dir', 'results/generated')
+    Path(generated_dir).mkdir(parents=True, exist_ok=True)
+    
+    # Log directory if not created yet
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+    
+    logger = logging.getLogger(__name__)
+    logger.info(f"Created output directories: {base_dir}")
 
 def parse_args():
     """Parse command line arguments."""
@@ -82,7 +103,9 @@ def parse_args():
     
     # Inspect factors command
     inspect_factors_parser = subparsers.add_parser("inspect_factors", help="Inspect influence factors")
-    inspect_factors_parser.add_argument("--layer", type=int, default=21, help="Layer to inspect")
+    inspect_factors_parser.add_argument("--layer", type=int, default=None, help="Layer to inspect (if not specified, will use from config)")
+    inspect_factors_parser.add_argument("--clip_percentile", type=float, default=None, help="Percentile for clipping extreme values (default: from config or 99.5)")
+    inspect_factors_parser.add_argument("--cmap", type=str, default=None, help="Colormap for visualizations (default: from config or 'coolwarm')")
     
     # Compute scores command
     scores_parser = subparsers.add_parser("compute_scores", help="Compute influence scores")
@@ -117,10 +140,31 @@ def run_compute_factors(config, logger):
     compute_factors(config)
     logger.info("Factor computation completed")
 
-def run_inspect_factors(config, layer, logger):
+def run_inspect_factors(config, layer, clip_percentile=None, cmap=None, logger=None):
     """Inspect influence factors for a specific layer."""
+    if logger is None:
+        logger = logging.getLogger(__name__)
+        
+    # If layer is not specified, use the layer from config
+    if layer is None:
+        # Get the inspection layer from config
+        layer = config['factors'].get('inspection_layer', 11)  # Fallback to 11 if not in config
+        logger.info(f"No layer specified, using layer {layer} from config")
+    
     logger.info(f"Inspecting influence factors for layer {layer}...")
-    inspect_factors(config, layer)
+    
+    # Get visualization parameters from config or use defaults
+    vis_config = config['factors'].get('visualization', {})
+    
+    # Command line args take precedence over config
+    if clip_percentile is None:
+        clip_percentile = vis_config.get('clip_percentile', 99.5)
+    
+    if cmap is None:
+        cmap = vis_config.get('cmap', 'coolwarm')
+    
+    logger.info(f"Using visualization parameters: clip_percentile={clip_percentile}, cmap={cmap}")
+    inspect_factors(config, layer, clip_percentile, cmap)
     logger.info("Factor inspection completed")
 
 def run_compute_scores(config, use_generated, logger):
@@ -185,8 +229,14 @@ def run_full_analysis(config, logger):
     # Step 2: Compute influence factors
     run_compute_factors(config, logger)
     
-    # Step 3: Inspect factors for the last layer
-    run_inspect_factors(config, 21, logger)
+    # Step 3: Inspect factors 
+    # Use the inspection layer from config
+    inspection_layer = config['factors'].get('inspection_layer', 11)  # Fallback to 11 if not in config
+    # Get visualization parameters from config
+    vis_config = config['factors'].get('visualization', {})
+    clip_percentile = vis_config.get('clip_percentile', 99.5)
+    cmap = vis_config.get('cmap', 'coolwarm')
+    run_inspect_factors(config, inspection_layer, clip_percentile, cmap, logger)
     
     # Step 4: Compute influence scores
     run_compute_scores(config, False, logger)
@@ -215,7 +265,7 @@ def main():
     elif args.command == "compute_factors":
         run_compute_factors(config, logger)
     elif args.command == "inspect_factors":
-        run_inspect_factors(config, args.layer, logger)
+        run_inspect_factors(config, args.layer, args.clip_percentile, args.cmap, logger)
     elif args.command == "compute_scores":
         run_compute_scores(config, args.use_generated, logger)
     elif args.command == "inspect_scores":

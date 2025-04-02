@@ -54,7 +54,12 @@ def generate_model_answers(config):
     output_file = config['evaluation']['generated_answers_file']
     finetuned_output_file = config['evaluation']['finetuned_answers_file']
     
+    # Ensure output directories exist
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    os.makedirs(os.path.dirname(finetuned_output_file), exist_ok=True)
+    
     logger.info(f"Generating answers from base model ({base_model_name}) and fine-tuned model ({finetuned_model_path})")
+    logger.info(f"Will save output to: {output_file} and {finetuned_output_file}")
     
     # Load prompts
     prompts = load_prompts(config)

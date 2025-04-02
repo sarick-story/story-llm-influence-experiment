@@ -21,18 +21,18 @@ from .task import LanguageModelingTask
 
 logger = logging.getLogger(__name__)
 
-def inspect_factors(config, layer_num=21):
+def inspect_factors(config, layer_num=11, clip_percentile=99.5, cmap='coolwarm'):
     """
     Inspect the influence factors for a specific layer.
     
     Args:
         config: Configuration dictionary
-        layer_num: Layer number to inspect (default: 21, last layer in TinyLlama)
+        layer_num: Layer number to inspect (default: 11, consistent with original code)
+        clip_percentile: Percentile for clipping extreme values in visualizations
+        cmap: Color map for visualizations
     """
     factors_name = config['factors']['all_layers_name']
     output_dir = os.path.join(config['output']['influence_results'], f"layer_{layer_num}")
-    clip_percentile = 99.5  # Clip extreme values for better visualization
-    cmap = 'coolwarm'  # Color map for visualizations
     
     # Create output directory
     os.makedirs(output_dir, exist_ok=True)

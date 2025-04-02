@@ -27,7 +27,11 @@ def get_dataset_examples(config, dataset_type='main'):
     """Load examples from the dataset."""
     # We now use the same dataset for all operations
     dataset_name = config['dataset']['name']
-    num_samples = config['dataset']['num_samples']
+    # Use analysis_samples instead of num_samples for influence analysis
+    num_samples = config['dataset'].get('analysis_samples', config['dataset']['num_samples'])
+    
+    # Get the text column name from config or default to common options
+    text_column = config['dataset'].get('text_column')
     
     logger.info(f"Loading dataset examples from: {dataset_name} (samples: {num_samples})")
     
@@ -121,13 +125,20 @@ def inspect_scores(config):
                 score = prompt_scores[idx]
                 
                 # Get the example text
-                if "text" in dataset.column_names:
-                    example_text = dataset[idx]["text"]
-                elif "description" in dataset.column_names:
-                    example_text = dataset[idx]["description"]
+                text_field = None
+                column_names = dataset.column_names
+                
+                if text_column and text_column in column_names:
+                    # Use the configured text column if it exists
+                    text_field = text_column
+                elif 'text' in column_names:
+                    text_field = 'text'
+                elif 'description' in column_names:
+                    text_field = 'description'
                 else:
-                    # Default to the first column
-                    example_text = dataset[idx][dataset.column_names[0]]
+                    text_field = column_names[0]  # Fall back to the first column
+                
+                example_text = dataset[idx][text_field]
                 
                 example_formatted = format_example(example_text)
                 f.write(f"| {rank+1} | {score:.6f} | {example_formatted} |\n")
@@ -143,13 +154,20 @@ def inspect_scores(config):
                 score = prompt_scores[idx]
                 
                 # Get the example text
-                if "text" in dataset.column_names:
-                    example_text = dataset[idx]["text"]
-                elif "description" in dataset.column_names:
-                    example_text = dataset[idx]["description"]
+                text_field = None
+                column_names = dataset.column_names
+                
+                if text_column and text_column in column_names:
+                    # Use the configured text column if it exists
+                    text_field = text_column
+                elif 'text' in column_names:
+                    text_field = 'text'
+                elif 'description' in column_names:
+                    text_field = 'description'
                 else:
-                    # Default to the first column
-                    example_text = dataset[idx][dataset.column_names[0]]
+                    text_field = column_names[0]  # Fall back to the first column
+                
+                example_text = dataset[idx][text_field]
                 
                 example_formatted = format_example(example_text)
                 f.write(f"| {rank+1} | {score:.6f} | {example_formatted} |\n")

@@ -113,7 +113,7 @@ def analyze_influential_examples(config, answers):
     """Analyze which training examples influenced the fine-tuned model's outputs."""
     scores_name = config['scores']['generated_name']
     dataset_name = config['dataset']['name']
-    num_samples = config['dataset']['num_samples']
+    num_samples = config['dataset'].get('analysis_samples', config['dataset']['num_samples'])
     num_influential = config['scores'].get('num_influential', 10)
     
     # Create analyzer
