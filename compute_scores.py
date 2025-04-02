@@ -62,6 +62,18 @@ def parse_args():
         help="JSON file with prompts to compute influence for.",
     )
     parser.add_argument(
+        "--use_generated_answers",
+        action="store_true",
+        default=False,
+        help="Use generated answers from the fine-tuned model instead of predefined completions.",
+    )
+    parser.add_argument(
+        "--generated_answers_file",
+        type=str,
+        default="finetuned_generated_answers.json",
+        help="JSON file with generated answers to use (when use_generated_answers is True).",
+    )
+    parser.add_argument(
         "--dataset_name",
         type=str,
         default="Elriggs/openwebtext-100k",
@@ -134,14 +146,23 @@ def get_tokenized_dataset(tokenizer, dataset_name, max_length, num_samples):
     return tokenized_dataset
 
 
-def create_prompt_dataset(tokenizer, prompts_file, max_length):
+def create_prompt_dataset(tokenizer, prompts_file, max_length, use_generated_answers=False, generated_answers_file=None):
     """Create a dataset from prompts in a JSON file."""
     # Load prompts from file
     if not os.path.exists(prompts_file):
         raise FileNotFoundError(f"Prompts file {prompts_file} not found")
     
-    with open(prompts_file, 'r') as f:
-        prompts_data = json.load(f)
+    # If we're using generated answers, load them instead
+    if use_generated_answers and generated_answers_file:
+        if not os.path.exists(generated_answers_file):
+            raise FileNotFoundError(f"Generated answers file {generated_answers_file} not found")
+        
+        logging.info(f"Using generated answers from {generated_answers_file}")
+        with open(generated_answers_file, 'r') as f:
+            prompts_data = json.load(f)
+    else:
+        with open(prompts_file, 'r') as f:
+            prompts_data = json.load(f)
     
     # Process prompts into a format for tokenization
     processed_prompts = []
@@ -238,7 +259,9 @@ def main():
     query_dataset = create_prompt_dataset(
         tokenizer, 
         args.prompts_file, 
-        args.max_length
+        args.max_length,
+        args.use_generated_answers,
+        args.generated_answers_file
     )
     
     # Define task

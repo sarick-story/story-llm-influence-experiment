@@ -11,3 +11,4 @@ bitsandbytes>=0.45.4
 peft
 flash-attn
 nvitop
+git+https://github.com/allenai/olmes.git
