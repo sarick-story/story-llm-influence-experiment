@@ -38,7 +38,7 @@ def parse_args():
     parser.add_argument("--factor_strategy", type=str, default="ekfac", choices=["ekfac", "kfac", "diagfisher"])
     parser.add_argument("--factor_batch_size", type=int, default=4)  # Increased default batch size
     parser.add_argument("--profile", action="store_true")
-    parser.add_argument("--dataset_name", type=str, default="Trelis/big_patent_sample")
+    parser.add_argument("--dataset_name", type=str, default="Elriggs/openwebtext-100k")
     parser.add_argument("--max_length", type=int, default=512)
     parser.add_argument("--num_samples", type=int, default=1000)
     parser.add_argument("--seed", type=int, default=42)
@@ -64,12 +64,12 @@ def get_tokenized_dataset(tokenizer, dataset_name, max_length, num_samples, seed
     raw_datasets = raw_datasets.shuffle(seed=seed)
     
     column_names = raw_datasets.column_names
-    description_column_name = "description" if "description" in column_names else column_names[0]
+    text_column_name = "text" if "text" in column_names else column_names[0]
     
     # Tokenize function that matches the original implementation
     def tokenize_function(examples):
         results = tokenizer(
-            examples[description_column_name], 
+            examples[text_column_name], 
             truncation=True, 
             padding="max_length",  # Use max_length padding instead of just "True"
             max_length=max_length,

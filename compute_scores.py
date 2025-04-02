@@ -102,12 +102,12 @@ def get_tokenized_dataset(tokenizer, dataset_name, max_length, num_samples):
         dataset = load_dataset(dataset_name, split="train")
     
     column_names = dataset.column_names
-    description_column_name = "description" if "description" in column_names else column_names[0]
+    text_column_name = "text" if "text" in column_names else column_names[0]
     
     # Tokenize function that matches the original implementation
     def tokenize_function(examples):
         results = tokenizer(
-            examples["description"],
+            examples[text_column_name],
             truncation=True,
             padding=True,
             max_length=max_length
@@ -124,7 +124,10 @@ def get_tokenized_dataset(tokenizer, dataset_name, max_length, num_samples):
     tokenized_dataset = dataset.map(
         tokenize_function,
         batched=True,
-        remove_columns=["description"],
+        num_proc=4,
+        remove_columns=column_names,
+        load_from_cache_file=True,
+        desc="Running tokenizer on dataset",
     )
     
     tokenized_dataset = tokenized_dataset.with_format("torch")
