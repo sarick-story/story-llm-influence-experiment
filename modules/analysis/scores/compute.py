@@ -17,8 +17,8 @@ from kronfluence.utils.common.score_arguments import extreme_reduce_memory_score
 from kronfluence.utils.dataset import DataLoaderKwargs
 import logging
 
-# Import custom task for language modeling
-from .task import LanguageModelingTask, LanguageModelingWithMarginMeasurementTask
+# Import custom task for language modeling - from factors module
+from modules.analysis.factors.task import LanguageModelingTask, LanguageModelingWithMarginMeasurementTask
 
 logger = logging.getLogger(__name__)
 
@@ -196,6 +196,11 @@ def compute_scores(config, use_generated_answers=False):
     logger.info(f"Layer mode: {layer_mode}")
     logger.info(f"Using generated answers: {use_generated_answers}")
     
+    # Set performance options for better throughput (from original code)
+    torch.backends.cudnn.benchmark = True
+    if torch.cuda.is_available():
+        torch.backends.cuda.matmul.allow_tf32 = True
+    
     # Load the model
     try:
         model = AutoModelForCausalLM.from_pretrained(
@@ -282,6 +287,50 @@ def compute_scores(config, use_generated_answers=False):
     score_args.per_sample_gradient_dtype = torch.bfloat16
     
     logger.info(f"Computing influence scores using factors: {factors_name}")
+    
+    # MONKEY-PATCH the factors_output_dir method to point to the correct location
+    import types
+    from pathlib import Path
+    
+    original_factors_output_dir = analyzer.factors_output_dir
+    
+    def patched_factors_output_dir(self, factors_name: str) -> Path:
+        # Construct the path to the saved factors using relative paths
+        # This matches how we observed factors are stored from our inspection
+        correct_path = Path(f"influence_results/results/influence/factors/factors_{factors_name}").resolve()
+        self.logger.info(f"[Patched] Factors output dir pointing to: {correct_path}")
+        
+        if not correct_path.exists():
+            # Try alternative locations if the primary path doesn't exist
+            alt_paths = [
+                Path(f"influence_results/factors_{factors_name}").resolve(),
+                Path(os.path.join(factors_dir, f"factors_{factors_name}")).resolve(),
+                Path(f"./influence_results/influence_results/factors_{factors_name}").resolve(),
+            ]
+            
+            for alt_path in alt_paths:
+                if alt_path.exists():
+                    self.logger.info(f"[Patched] Found factors at alternative location: {alt_path}")
+                    return alt_path
+                    
+            self.logger.error(f"[Patched] Factors directory does not exist at: {correct_path}")
+            self.logger.error(f"[Patched] Alternative paths checked: {alt_paths}")
+            raise FileNotFoundError(f"[Patched] Factors directory not found: {correct_path}")
+            
+        # Check if the arguments file exists within this correct path
+        args_file = correct_path / "factor_arguments.json"
+        if not args_file.exists():
+            self.logger.error(f"[Patched] Factor arguments file not found at: {args_file}")
+            # Check for other files to help debug
+            if os.path.exists(correct_path):
+                self.logger.info(f"[Patched] Files in factors directory: {os.listdir(correct_path)}")
+            raise FileNotFoundError(f"[Patched] Factor arguments file not found: {args_file}")
+            
+        return correct_path
+    
+    # Apply the monkey patch
+    analyzer.factors_output_dir = types.MethodType(patched_factors_output_dir, analyzer)
+    logger.info("Applied patch to analyzer.factors_output_dir")
     
     # Compute pairwise influence scores
     analyzer.compute_pairwise_scores(

@@ -18,13 +18,7 @@ from pathlib import Path
 # Add custom packages to path
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
-# Import modules - these will be created in subsequent steps
-from modules.training import train_model
-from modules.analysis.factors import compute_factors, inspect_factors
-from modules.analysis.scores import compute_scores, inspect_scores
-from modules.evaluation.custom import generate_model_answers, compare_models
-from modules.evaluation.olmes import run_olmes_evaluation
-from modules.evaluation.reporting import combine_evaluation_results
+# Import modules conditionally in each function instead of all at once
 
 def load_config(config_path):
     """Load configuration from YAML file."""
@@ -130,18 +124,27 @@ def parse_args():
 
 def run_train(config, logger):
     """Run model training."""
+    # Only import the training module when needed
+    from modules.training import train_model
+    
     logger.info("Starting model training...")
     train_model(config)
     logger.info("Model training completed")
 
 def run_compute_factors(config, logger):
     """Compute influence factors."""
+    # Only import the factors module when needed
+    from modules.analysis.factors import compute_factors
+    
     logger.info("Starting influence factor computation...")
     compute_factors(config)
     logger.info("Factor computation completed")
 
 def run_inspect_factors(config, layer, clip_percentile=None, cmap=None, logger=None):
     """Inspect influence factors for a specific layer."""
+    # Only import the factors module when needed
+    from modules.analysis.factors import inspect_factors
+    
     if logger is None:
         logger = logging.getLogger(__name__)
         
@@ -169,18 +172,28 @@ def run_inspect_factors(config, layer, clip_percentile=None, cmap=None, logger=N
 
 def run_compute_scores(config, use_generated, logger):
     """Compute influence scores."""
+    # Only import the scores module when needed
+    from modules.analysis.scores import compute_scores
+    
     logger.info("Computing influence scores...")
     compute_scores(config, use_generated)
     logger.info("Score computation completed")
 
 def run_inspect_scores(config, logger):
     """Inspect influence scores."""
+    # Only import the scores module when needed
+    from modules.analysis.scores import inspect_scores
+    
     logger.info("Inspecting influence scores...")
     inspect_scores(config)
     logger.info("Score inspection completed")
 
 def run_custom_evaluation(config, logger):
     """Run custom model evaluation."""
+    # Only import the evaluation modules when needed
+    from modules.evaluation.custom import generate_model_answers, compare_models
+    from modules.analysis.scores import compute_scores
+    
     logger.info("Starting custom model evaluation...")
     
     # Generate answers from both models
@@ -199,12 +212,18 @@ def run_custom_evaluation(config, logger):
 
 def run_olmes_evaluation(config, logger):
     """Run OLMES evaluation."""
+    # Only import the OLMES module when needed
+    from modules.evaluation.olmes import run_olmes_evaluation as run_olmes
+    
     logger.info("Starting OLMES evaluation...")
-    run_olmes_evaluation(config)
+    run_olmes(config)
     logger.info("OLMES evaluation completed")
 
 def run_combined_evaluation(config, logger):
     """Run both custom and OLMES evaluations and combine results."""
+    # Only import the reporting module when needed
+    from modules.evaluation.reporting import combine_evaluation_results
+    
     logger.info("Starting comprehensive evaluation...")
     
     # Run custom evaluation
@@ -221,6 +240,7 @@ def run_combined_evaluation(config, logger):
 
 def run_full_analysis(config, logger):
     """Run the full analysis pipeline."""
+    # Import each module only when it's about to be used
     logger.info("Starting full analysis pipeline...")
     
     # Step 1: Train the model

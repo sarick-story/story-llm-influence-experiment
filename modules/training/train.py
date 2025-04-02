@@ -16,6 +16,8 @@ from transformers import (
 )
 from datasets import load_dataset
 import logging
+import pickle
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +84,11 @@ def get_dataset(config):
     tokenized_dataset = tokenized_dataset.with_format("torch")
     return tokenized_dataset, tokenizer
 
+def load_config(config_path="config.yaml"):
+    """Load configuration from YAML file."""
+    with open(config_path, "r") as f:
+        return yaml.safe_load(f)
+
 def train_model(config):
     """Train the language model and save it to the specified path."""
     model_output_path = config['models']['finetuned']['path']
@@ -105,21 +112,37 @@ def train_model(config):
     # Get the tokenized dataset and tokenizer
     tokenized_dataset, tokenizer = get_dataset(config)
     
-    # Set up training arguments
+    # Setup training arguments - adjusted for full precision
+    logger.info(f"Setting up training with output directory: {model_output_path}")
+
+    # Determine mixed-precision settings
+    use_bf16 = torch.cuda.is_available() and torch.cuda.get_device_capability()[0] >= 8
+
     training_args = TrainingArguments(
         output_dir=model_output_path,
+        num_train_epochs=1,
         per_device_train_batch_size=8,
-        num_train_epochs=3,
+        save_steps=100,
+        logging_steps=20,
         learning_rate=2e-5,
         weight_decay=0.01,
-        save_strategy="epoch",
         logging_dir="./logs",
-        logging_steps=500,
-        fp16=True,
-        gradient_accumulation_steps=4,
-        warmup_steps=500,
-        seed=seed,
-        report_to="none"  # Disable wandb or other reporting
+        lr_scheduler_type="cosine_with_restarts",
+        gradient_accumulation_steps=1,
+        # When using BFloat16, we need to disable gradient clipping to avoid the error
+        max_grad_norm=None if use_bf16 else 1.0,
+        # Use bfloat16 if available
+        bf16=use_bf16,
+        # Disable gradient checkpointing to speed up training since we have memory headroom
+        gradient_checkpointing=False,
+        # Optimize memory usage
+        optim="adamw_torch_fused",
+        # Data loading settings
+        dataloader_num_workers=4,
+        # Avoid certain warnings
+        ddp_find_unused_parameters=False,
+        dataloader_drop_last=True,
+        remove_unused_columns=True,
     )
     
     # Create the trainer
@@ -127,8 +150,6 @@ def train_model(config):
         model=model,
         args=training_args,
         train_dataset=tokenized_dataset,
-        data_collator=default_data_collator,
-        tokenizer=tokenizer,
     )
     
     logger.info("Starting model training...")
@@ -140,3 +161,6 @@ def train_model(config):
     tokenizer.save_pretrained(model_output_path)
     
     return model_output_path 
+
+if __name__ == "__main__":
+    main() 

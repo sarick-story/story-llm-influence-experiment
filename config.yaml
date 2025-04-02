@@ -14,7 +14,7 @@ models:
 dataset:
   name: "Trelis/big_patent_sample"
   num_samples: 14000
-  analysis_samples: 5000  # Number of samples to use for influence analysis (factors & scores)
+  analysis_samples: 1000  # Number of samples to use for influence analysis (factors & scores)
   text_column: "description"  # Column name containing the text data
 
 # General Configuration
@@ -42,8 +42,8 @@ factors:
   name: "tinyllama_1b_factors"
   all_layers_name: "tinyllama_1b_factors_all_layers"
   strategy: "ekfac"
-  batch_size: 16
-  num_workers: 8
+  batch_size: 48
+  num_workers: 16
   # Directory where factors will be saved (relative to influence_results)
   output_dir: "factors"
   # Default layer to use for factor inspection (last layer in TinyLlama)
@@ -61,6 +61,15 @@ factors:
       start: 0
       end: 11
       step: 1  # Optional step size for taking every nth layer
+  # Performance options for factor computation
+  performance_options:
+    covariance_module_partitions: 2
+    lambda_module_partitions: 4
+    covariance_data_partitions: 4
+    lambda_data_partitions: 4
+    eigendecomposition_dtype: "float64"  # torch.float64
+    module_partitions: 1
+    dtype: "bfloat16"  # torch.bfloat16
 
 # Score Computation Configuration
 scores:
