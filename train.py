@@ -41,7 +41,7 @@ else:
 
     # Tokenize dataset
     def tokenize_function(examples):
-        outputs = tokenizer(examples["description"], truncation=True, max_length=512, padding="max_length")
+        outputs = tokenizer(examples["description"], truncation=True, max_length=2048, padding="max_length")
         # Set labels equal to input_ids for causal language modeling
         outputs["labels"] = outputs["input_ids"].copy()
         # Replace padding token IDs with -100 in labels
@@ -70,7 +70,7 @@ use_bf16 = torch.cuda.is_available() and torch.cuda.get_device_capability()[0] >
 training_args = TrainingArguments(
     output_dir=output_dir,
     num_train_epochs=1,
-    per_device_train_batch_size=32,  # Increased from 8 to better utilize GPU memory
+    per_device_train_batch_size=8,  # Increased from 8 to better utilize GPU memory
     save_steps=100,
     logging_steps=20,
     learning_rate=2e-5,  # Slightly increased learning rate
