@@ -37,11 +37,11 @@ else:
     # Load a small dataset (subset of OpenWebText)
     num_samples = 10000
     logger.info("Loading dataset from scratch")
-    dataset = load_dataset("Trelis/big_patent_sample", split=f"train[:{num_samples}]")
+    dataset = load_dataset("Elriggs/openwebtext-100k", split=f"train[:{num_samples}]")
 
     # Tokenize dataset
     def tokenize_function(examples):
-        outputs = tokenizer(examples["description"], truncation=True, max_length=2048, padding="max_length")
+        outputs = tokenizer(examples["text"], truncation=True, max_length=512, padding="max_length")
         # Set labels equal to input_ids for causal language modeling
         outputs["labels"] = outputs["input_ids"].copy()
         # Replace padding token IDs with -100 in labels
@@ -52,7 +52,7 @@ else:
         return outputs
 
     logger.info("Tokenizing dataset")
-    tokenized_dataset = dataset.map(tokenize_function, batched=True, remove_columns=["description"])
+    tokenized_dataset = dataset.map(tokenize_function, batched=True, remove_columns=["text"])
     tokenized_dataset = tokenized_dataset.with_format("torch")
     
     # Cache the tokenized dataset
@@ -70,7 +70,7 @@ use_bf16 = torch.cuda.is_available() and torch.cuda.get_device_capability()[0] >
 training_args = TrainingArguments(
     output_dir=output_dir,
     num_train_epochs=1,
-    per_device_train_batch_size=8,  # Increased from 8 to better utilize GPU memory
+    per_device_train_batch_size=32,  # Increased from 8 to better utilize GPU memory
     save_steps=100,
     logging_steps=20,
     learning_rate=2e-5,  # Slightly increased learning rate

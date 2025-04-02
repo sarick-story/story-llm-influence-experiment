@@ -5,10 +5,10 @@ set -e  # Exit on any error
 MODEL_PATH="./tinyllama_1b_model"
 FACTORS_NAME="tinyllama_1b_factors_all_layers"
 SCORES_NAME="tinyllama_prompt_scores_all_layers"
-DATASET_NAME="Trelis/big_patent_sample"
-MAX_LENGTH=2048
+DATASET_NAME="Elriggs/openwebtext-100k"
+MAX_LENGTH=512
 NUM_SAMPLES=10000
-FACTOR_BATCH_SIZE=8
+FACTOR_BATCH_SIZE=16
 TRAIN_BATCH_SIZE=4
 QUERY_GRADIENT_RANK=64
 NUM_WORKERS=8

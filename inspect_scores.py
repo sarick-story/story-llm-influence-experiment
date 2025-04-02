@@ -134,7 +134,7 @@ def main():
     
     # Load dataset to get texts of influential examples
     try:
-        dataset = load_dataset("Trelis/big_patent_sample", split="train[:10000]")
+        dataset = load_dataset("Elriggs/openwebtext-100k", split="train[:10000]")
     except Exception as e:
         logger.error(f"Error loading dataset: {e}")
         return
@@ -160,14 +160,14 @@ def main():
         print(f"{'='*80}")
         for i, idx in enumerate(most_positive_indices):
             score = prompt_scores[idx]
-            description = dataset[int(idx)]["description"]
+            text = dataset[int(idx)]["text"]
             
             # Truncate text if too long
-            if len(description) > 500:
-                description = description[:500] + "..."
+            if len(text) > 500:
+                text = text[:500] + "..."
                 
             print(f"Rank = {i}; Score = {score:.2f}")
-            print(description)
+            print(text)
             print(f"{'='*80}")
             
         # Print most negative influences
@@ -175,14 +175,14 @@ def main():
         print(f"{'='*80}")
         for i, idx in enumerate(most_negative_indices):
             score = prompt_scores[idx]
-            description = dataset[int(idx)]["description"]
+            text = dataset[int(idx)]["text"]
             
             # Truncate text if too long
-            if len(description) > 500:
-                description = description[:500] + "..."
+            if len(text) > 500:
+                text = text[:500] + "..."
                 
             print(f"Rank = {i}; Score = {score:.2f}")
-            print(description)
+            print(text)
             print(f"{'='*80}")
     
     # Save a report
@@ -203,14 +203,14 @@ def main():
             f.write("### Top Influential Training Examples:\n\n")
             for i, idx in enumerate(most_positive_indices):
                 score = prompt_scores[idx]
-                description = dataset[int(idx)]["description"]
+                text = dataset[int(idx)]["text"]
                 
                 # Truncate text if too long
-                if len(description) > 500:
-                    description = description[:500] + "..."
+                if len(text) > 500:
+                    text = text[:500] + "..."
                     
                 f.write(f"**Rank {i+1}** (Score: {score:.2f})\n\n")
-                f.write(f"```\n{description}\n```\n\n")
+                f.write(f"```\n{text}\n```\n\n")
     
     logger.info(f"Report saved to {args.scores_name}_report.md")
 
