@@ -7,6 +7,7 @@ This module handles computing the influence factors for the trained model using 
 import os
 import time
 import torch
+import wandb
 from pathlib import Path
 from datetime import datetime
 from transformers import AutoModelForCausalLM, AutoTokenizer, default_data_collator
@@ -15,6 +16,7 @@ from kronfluence.analyzer import Analyzer, prepare_model
 from kronfluence.utils.common.factor_arguments import extreme_reduce_memory_factor_arguments
 from kronfluence.utils.dataset import DataLoaderKwargs
 import logging
+from modules.utils.wandb_utils import init_wandb
 
 # Import custom task for language modeling
 from .task import LanguageModelingTask
@@ -94,6 +96,9 @@ def compute_factors(config):
     num_workers = config['factors']['num_workers']
     use_flash_attention = config['general'].get('use_flash_attention', False)
     seed = config['general'].get('seed', 42)
+    
+    # Initialize wandb with consistent naming scheme
+    run = init_wandb(config, "factors")
     
     # Get layer configuration
     layers_config = config['factors'].get('layers', {'mode': 'all'})
@@ -264,5 +269,18 @@ def compute_factors(config):
     logger.info(f"Factor computation completed at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"Total runtime: {int(hours)}h {int(minutes)}m {seconds:.2f}s")
     logger.info(f"Factors saved to: {factors_path}")
+    
+    # Log factor computation metrics to wandb
+    if wandb.run is not None:
+        wandb.log({
+            'factor_computation_time': time.time() - start_time,
+            'num_layers': num_layers,
+            'num_analyzed_modules': len(modules),
+            'factor_strategy': factor_strategy,
+            'factor_batch_size': factor_batch_size,
+            'layer_mode': layer_mode,
+            'factors_name': factors_name,
+            'factors_saved_path': factors_path
+        })
     
     return factors_name 

@@ -9,6 +9,7 @@ import json
 import os
 import time
 import torch
+import wandb
 from datetime import datetime
 from transformers import AutoModelForCausalLM, AutoTokenizer, default_data_collator
 from datasets import load_dataset, Dataset
@@ -16,6 +17,7 @@ from kronfluence.analyzer import Analyzer, prepare_model
 from kronfluence.utils.common.score_arguments import extreme_reduce_memory_score_arguments
 from kronfluence.utils.dataset import DataLoaderKwargs
 import logging
+from modules.utils.wandb_utils import init_wandb
 
 # Import custom task for language modeling - from factors module
 from modules.analysis.factors.task import LanguageModelingTask, LanguageModelingWithMarginMeasurementTask
@@ -158,9 +160,13 @@ def compute_scores(config, use_generated_answers=False):
     # Extract configuration
     model_path = config['models']['finetuned']['path']
     
+    # Initialize wandb with a unique run name including generated flag if used
+    run_prefix = "scores_gen" if use_generated_answers else "scores"
+    run = init_wandb(config, run_prefix)
+    
     # Determine which factors and scores to use
     if use_generated_answers:
-        factors_name = config['factors']['name']
+        factors_name = config['factors']['all_layers_name']
         scores_name = config['scores']['generated_name']
     else:
         factors_name = config['factors']['all_layers_name']
@@ -358,5 +364,18 @@ def compute_scores(config, use_generated_answers=False):
     logger.info(f"Total runtime: {int(hours)}h {int(minutes)}m {seconds:.2f}s")
     logger.info(f"Started at: {start_datetime}")
     logger.info(f"Finished at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    
+    # Log score computation metrics to wandb
+    if wandb.run is not None:
+        wandb.log({
+            'score_computation_time': time.time() - start_time,
+            'num_queries': len(query_dataset),
+            'num_train_samples': len(train_dataset),
+            'use_generated_answers': use_generated_answers,
+            'scores_name': scores_name,
+            'factors_name': factors_name,
+            'scores_shape': list(scores.shape),
+            'layer_mode': layer_mode
+        })
     
     return scores_name 

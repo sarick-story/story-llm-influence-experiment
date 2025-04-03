@@ -12,6 +12,7 @@ import os
 import sys
 import yaml
 import logging
+import wandb
 from datetime import datetime
 from pathlib import Path
 
@@ -19,6 +20,9 @@ from pathlib import Path
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
 # Import modules conditionally in each function instead of all at once
+
+# Import our wandb utilities
+from modules.utils.wandb_utils import init_wandb
 
 def load_config(config_path):
     """Load configuration from YAML file."""
@@ -112,7 +116,7 @@ def parse_args():
     eval_parser = subparsers.add_parser("evaluate", help="Run model evaluation")
     eval_parser.add_argument(
         "--type", 
-        choices=["custom", "olmes", "all"], 
+        choices=["custom", "deepeval", "all"],
         default="all",
         help="Type of evaluation to run (default: all)"
     )
@@ -167,8 +171,8 @@ def run_inspect_factors(config, layer, clip_percentile=None, cmap=None, logger=N
         cmap = vis_config.get('cmap', 'coolwarm')
     
     logger.info(f"Using visualization parameters: clip_percentile={clip_percentile}, cmap={cmap}")
-    inspect_factors(config, layer, clip_percentile, cmap)
-    logger.info("Factor inspection completed")
+    factor_output_dir = inspect_factors(config, layer, clip_percentile, cmap)
+    logger.info(f"Factor inspection results saved to: {factor_output_dir}")
 
 def run_compute_scores(config, use_generated, logger):
     """Compute influence scores."""
@@ -176,7 +180,7 @@ def run_compute_scores(config, use_generated, logger):
     from modules.analysis.scores import compute_scores
     
     logger.info("Computing influence scores...")
-    compute_scores(config, use_generated)
+    compute_scores(config, use_generated_answers=use_generated)
     logger.info("Score computation completed")
 
 def run_inspect_scores(config, logger):
@@ -185,8 +189,8 @@ def run_inspect_scores(config, logger):
     from modules.analysis.scores import inspect_scores
     
     logger.info("Inspecting influence scores...")
-    inspect_scores(config)
-    logger.info("Score inspection completed")
+    scores_report = inspect_scores(config)
+    logger.info(f"Score inspection report generated at: {scores_report}")
 
 def run_custom_evaluation(config, logger):
     """Run custom model evaluation."""
@@ -202,7 +206,7 @@ def run_custom_evaluation(config, logger):
     
     # Compute scores using generated answers
     logger.info("Computing influence scores for generated answers...")
-    compute_scores(config, use_generated=True)
+    compute_scores(config, use_generated_answers=True)
     
     # Compare models and analyze influences
     logger.info("Comparing models and analyzing influences...")
@@ -210,29 +214,33 @@ def run_custom_evaluation(config, logger):
     
     logger.info("Custom evaluation completed")
 
-def run_olmes_evaluation(config, logger):
-    """Run OLMES evaluation."""
-    # Only import the OLMES module when needed
-    from modules.evaluation.olmes import run_olmes_evaluation as run_olmes
-    
-    logger.info("Starting OLMES evaluation...")
-    run_olmes(config)
-    logger.info("OLMES evaluation completed")
+def run_deepeval_evaluation(config, logger):
+    """Run DeepEval evaluation."""
+    # Only import the DeepEval module when needed
+    try:
+        from modules.evaluation.deepeval.deepeval_runner import run_deepeval_evaluation as run_deepeval
+        logger.info("Starting DeepEval evaluation...")
+        run_deepeval(config)
+        logger.info("DeepEval evaluation completed")
+    except ImportError:
+        logger.error("DeepEval runner module not found or deepeval package not installed. Skipping DeepEval evaluation.")
+    except Exception as e:
+        logger.error(f"An error occurred during DeepEval evaluation: {e}", exc_info=True)
 
 def run_combined_evaluation(config, logger):
-    """Run both custom and OLMES evaluations and combine results."""
+    """Run both custom and other configured evaluations and combine results."""
     # Only import the reporting module when needed
     from modules.evaluation.reporting import combine_evaluation_results
     
     logger.info("Starting comprehensive evaluation...")
     
-    # Run custom evaluation
+    # Run custom evaluation (which often includes generation needed by others)
     run_custom_evaluation(config, logger)
     
-    # Run OLMES evaluation
-    run_olmes_evaluation(config, logger)
+    # Run DeepEval evaluation
+    run_deepeval_evaluation(config, logger)
     
-    # Combine results
+    # Combine results (consider if DeepEval results should be included here)
     logger.info("Combining evaluation results...")
     combine_evaluation_results(config)
     
@@ -242,6 +250,14 @@ def run_full_analysis(config, logger):
     """Run the full analysis pipeline."""
     # Import each module only when it's about to be used
     logger.info("Starting full analysis pipeline...")
+    
+    # Initialize a parent wandb run for the full pipeline
+    if 'wandb' in config and wandb.run is None:
+        from modules.utils.wandb_utils import generate_run_name
+        wandb_config = config['wandb'].copy()
+        wandb_config['name'] = generate_run_name('full_pipeline', config)
+        wandb.init(**wandb_config)
+        logger.info(f"Initialized wandb run for full pipeline: {wandb.run.name}")
     
     # Step 1: Train the model
     run_train(config, logger)
@@ -256,18 +272,26 @@ def run_full_analysis(config, logger):
     vis_config = config['factors'].get('visualization', {})
     clip_percentile = vis_config.get('clip_percentile', 99.5)
     cmap = vis_config.get('cmap', 'coolwarm')
-    run_inspect_factors(config, inspection_layer, clip_percentile, cmap, logger)
+    factor_output_dir = run_inspect_factors(config, inspection_layer, clip_percentile, cmap, logger)
+    logger.info(f"Factor inspection results saved to: {factor_output_dir}")
     
     # Step 4: Compute influence scores
     run_compute_scores(config, False, logger)
     
     # Step 5: Inspect scores
-    run_inspect_scores(config, logger)
+    scores_report = run_inspect_scores(config, logger)
+    logger.info(f"Score inspection report generated at: {scores_report}")
     
     # Step 6: Run comprehensive evaluation
     run_combined_evaluation(config, logger)
     
     logger.info("Full analysis pipeline completed")
+    
+    # Finish the wandb run if one was started
+    if wandb.run is not None:
+        wandb.log({"pipeline_completed": True})
+        wandb.finish()
+        logger.info("Finished wandb run")
 
 def main():
     """Main entry point."""
@@ -278,6 +302,11 @@ def main():
     config = load_config(args.config)
     
     create_output_directories(config)
+    
+    # Initialize wandb if it's not already initialized
+    if 'wandb' in config:
+        # We don't initialize here since each function will initialize with its specific prefix
+        logger.info("Weights & Biases (wandb) configuration found in config")
     
     # Execute the requested command
     if args.command == "train":
@@ -293,8 +322,8 @@ def main():
     elif args.command == "evaluate":
         if args.type == "custom":
             run_custom_evaluation(config, logger)
-        elif args.type == "olmes":
-            run_olmes_evaluation(config, logger)
+        elif args.type == "deepeval":
+            run_deepeval_evaluation(config, logger)
         elif args.type == "all":
             run_combined_evaluation(config, logger)
     elif args.command == "run_full_analysis":

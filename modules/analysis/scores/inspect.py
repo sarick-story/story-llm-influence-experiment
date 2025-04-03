@@ -8,12 +8,15 @@ the most influential training examples for each prompt.
 import json
 import os
 import torch
+import wandb
 import numpy as np
 import pandas as pd
+import glob
+from pathlib import Path
 from kronfluence.analyzer import Analyzer
 from datasets import load_dataset
 import logging
-from pathlib import Path
+from modules.utils.wandb_utils import init_wandb
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +57,42 @@ def get_prompts(config):
     
     return prompts
 
+def find_scores_file(scores_name):
+    """Find the scores file in various possible locations."""
+    possible_paths = [
+        f"./results/influence/scores/scores_{scores_name}/pairwise_scores.safetensors",
+        f"./influence_results/scores/scores_{scores_name}/pairwise_scores.safetensors",
+        f"./influence_results/influence_results/scores_{scores_name}/pairwise_scores.safetensors",
+        f"./results/influence/scores/scores_{scores_name}",
+        f"./influence_results/results/influence/scores/scores_{scores_name}/pairwise_scores.safetensors",
+    ]
+    
+    # Also try to find any scores_ directory
+    score_dirs = glob.glob("./influence_results/**/scores_*/pairwise_scores.safetensors", recursive=True)
+    possible_paths.extend(score_dirs)
+    
+    for path in possible_paths:
+        logger.info(f"Checking for scores file at: {path}")
+        if os.path.exists(path):
+            if os.path.isdir(path):
+                # If it's a directory, look for the pairwise_scores.safetensors file inside
+                file_path = os.path.join(path, "pairwise_scores.safetensors")
+                if os.path.exists(file_path):
+                    logger.info(f"Found scores file at: {file_path}")
+                    return file_path
+            else:
+                logger.info(f"Found scores file at: {path}")
+                return path
+    
+    # Last resort - try to find any pairwise_scores.safetensors file
+    logger.info("Searching for any pairwise_scores.safetensors file...")
+    all_score_files = glob.glob("**/pairwise_scores.safetensors", recursive=True)
+    if all_score_files:
+        logger.info(f"Found potential score files: {all_score_files}")
+        return all_score_files[0]
+    
+    return None
+
 def inspect_scores(config):
     """
     Inspect influence scores and generate a report.
@@ -64,20 +103,28 @@ def inspect_scores(config):
     scores_name = config['scores']['all_layers_name']
     num_influential = config['scores'].get('num_influential', 10)
     
+    # Initialize wandb with a unique run name
+    run = init_wandb(config, "inspect_scores")
+    
     logger.info(f"Inspecting influence scores: {scores_name}")
     logger.info(f"Number of influential examples to show: {num_influential}")
     
-    # Create analyzer
-    analyzer = Analyzer(
-        analysis_name="influence_results",
-        model=None,  # No need for model when just inspecting scores
-        task=None,   # No need for task when just inspecting scores
-    )
+    # Try to find and load the scores file directly
+    scores_file = find_scores_file(scores_name)
     
-    # Load scores
+    if not scores_file:
+        logger.error(f"Could not find scores file for {scores_name}")
+        raise FileNotFoundError(f"Scores file for {scores_name} not found")
+    
+    logger.info(f"Loading scores from: {scores_file}")
+    
     try:
-        scores_dict = analyzer.load_pairwise_scores(scores_name)
+        # Load the scores using Analyzer.load_file
+        scores_dict = Analyzer.load_file(scores_file)
         all_scores = scores_dict["all_modules"]
+        # Convert to float32 for consistency
+        if hasattr(all_scores, 'to'):
+            all_scores = all_scores.to(torch.float32)
         logger.info(f"Scores loaded successfully. Shape: {all_scores.shape}")
     except Exception as e:
         logger.error(f"Error loading scores: {e}")
@@ -93,8 +140,11 @@ def inspect_scores(config):
     if isinstance(all_scores, torch.Tensor):
         all_scores = all_scores.cpu().numpy()
     
-    # Generate report
-    report_file = f"{scores_name}_report.md"
+    # Generate report in the proper directory
+    scores_dir = os.path.join(config['output']['influence_results'], config['scores'].get('output_dir', 'scores'))
+    os.makedirs(scores_dir, exist_ok=True)
+    report_filename = f"{scores_name}_report.md"
+    report_file = os.path.join(scores_dir, report_filename)
     
     logger.info(f"Generating influence scores report: {report_file}")
     
@@ -128,6 +178,7 @@ def inspect_scores(config):
                 text_field = None
                 column_names = dataset.column_names
                 
+                text_column = config['dataset'].get('text_column')
                 if text_column and text_column in column_names:
                     # Use the configured text column if it exists
                     text_field = text_column
@@ -138,7 +189,7 @@ def inspect_scores(config):
                 else:
                     text_field = column_names[0]  # Fall back to the first column
                 
-                example_text = dataset[idx][text_field]
+                example_text = dataset[int(idx)][text_field]
                 
                 example_formatted = format_example(example_text)
                 f.write(f"| {rank+1} | {score:.6f} | {example_formatted} |\n")
@@ -157,6 +208,7 @@ def inspect_scores(config):
                 text_field = None
                 column_names = dataset.column_names
                 
+                text_column = config['dataset'].get('text_column')
                 if text_column and text_column in column_names:
                     # Use the configured text column if it exists
                     text_field = text_column
@@ -167,7 +219,7 @@ def inspect_scores(config):
                 else:
                     text_field = column_names[0]  # Fall back to the first column
                 
-                example_text = dataset[idx][text_field]
+                example_text = dataset[int(idx)][text_field]
                 
                 example_formatted = format_example(example_text)
                 f.write(f"| {rank+1} | {score:.6f} | {example_formatted} |\n")
@@ -191,5 +243,39 @@ def inspect_scores(config):
             f.write("\n---\n\n")
     
     logger.info(f"Report generated: {report_file}")
+    
+    # Log results to wandb
+    if wandb.run is not None:
+        # Log summary statistics
+        stats_by_prompt = []
+        for prompt_idx, prompt in enumerate(prompts):
+            prompt_scores = all_scores[prompt_idx]
+            stats = {
+                "prompt_idx": prompt_idx,
+                "prompt_text": prompt["prompt"][:100] + "..." if len(prompt["prompt"]) > 100 else prompt["prompt"],
+                "max_score": float(np.max(prompt_scores)),
+                "min_score": float(np.min(prompt_scores)),
+                "mean_score": float(np.mean(prompt_scores)),
+                "median_score": float(np.median(prompt_scores)),
+                "std_score": float(np.std(prompt_scores))
+            }
+            stats_by_prompt.append(stats)
+        
+        # Create a wandb Table
+        columns = list(stats_by_prompt[0].keys())
+        data = [[row[col] for col in columns] for row in stats_by_prompt]
+        table = wandb.Table(columns=columns, data=data)
+        
+        # Log metrics
+        wandb.log({
+            "scores_report": table,
+            "num_prompts": len(prompts),
+            "num_influential_examples": num_influential,
+            "report_file": report_file,
+            "scores_name": scores_name
+        })
+        
+        # Upload the report file from the correct location
+        wandb.save(report_file)
     
     return report_file 

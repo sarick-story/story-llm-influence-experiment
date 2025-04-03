@@ -9,11 +9,13 @@ import logging
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import wandb
 from pathlib import Path
 from kronfluence.analyzer import Analyzer
 from matplotlib import cm
 from matplotlib.colors import Normalize
 from datasets import load_dataset
+from modules.utils.wandb_utils import init_wandb
 
 # Import custom task for language modeling
 from .task import LanguageModelingTask
@@ -32,6 +34,9 @@ def inspect_factors(config, layer_num=11, clip_percentile=99.5, cmap='coolwarm')
     """
     factors_name = config['factors']['all_layers_name']
     output_dir = os.path.join(config['output']['influence_results'], f"layer_{layer_num}")
+    
+    # Initialize wandb with a unique run name
+    run = init_wandb(config, f"inspect_factors_l{layer_num}")
     
     # Create output directory
     os.makedirs(output_dir, exist_ok=True)
@@ -191,7 +196,28 @@ def inspect_factors(config, layer_num=11, clip_percentile=99.5, cmap='coolwarm')
             visualize_lambda_matrix(module_lambda_matrix, output_dir, clip_percentile, cmap)
             
             # Visualize the eigenvalue distribution
-            visualize_eigenvalues(eigenvalues, output_dir)
+            eigenvalues, eigval_analysis = visualize_eigenvalues(eigenvalues, output_dir)
+            
+            # Log results to wandb
+            if wandb.run is not None:
+                # Log the visualizations
+                wandb.log({
+                    "lambda_matrix": wandb.Image(os.path.join(output_dir, 'lambda_matrix.png')),
+                    "eigenvalue_distribution": wandb.Image(os.path.join(output_dir, 'eigenvalue_distribution.png')),
+                    "cumulative_variance": wandb.Image(os.path.join(output_dir, 'cumulative_variance.png')),
+                    "layer": layer_num,
+                    "factors_name": factors_name,
+                    "max_eigenvalue": float(eigenvalues[0]) if len(eigenvalues) > 0 else 0,
+                    "min_eigenvalue": float(eigenvalues[-1]) if len(eigenvalues) > 0 else 0,
+                    "mean_eigenvalue": float(np.mean(eigenvalues)) if len(eigenvalues) > 0 else 0,
+                    "median_eigenvalue": float(np.median(eigenvalues)) if len(eigenvalues) > 0 else 0,
+                    "eigenvalue_90pct": eigval_analysis['eigval_90'],
+                    "eigenvalue_95pct": eigval_analysis['eigval_95'],
+                    "eigenvalue_99pct": eigval_analysis['eigval_99'],
+                })
+                
+                # Save the full output directory to wandb
+                wandb.save(os.path.join(output_dir, "*"))
             
             logger.info(f"Factor inspection for layer {layer_num} completed.")
             logger.info(f"Results saved to {output_dir}")
@@ -361,6 +387,9 @@ def visualize_eigenvalues(eigenvalues, output_dir, n_top=100):
         eigenvalues: The eigenvalues to visualize
         output_dir: Directory to save the visualization
         n_top: Number of top eigenvalues to show in the detailed plot
+        
+    Returns:
+        tuple: (eigenvalues as numpy array, dict of eigenvalue analysis results)
     """
     # Convert to numpy for visualization
     if isinstance(eigenvalues, torch.Tensor):
@@ -460,4 +489,18 @@ def visualize_eigenvalues(eigenvalues, output_dir, n_top=100):
         f.write(f"95% variance captured by {eigval_95} eigenvalues ({eigval_95 / len(sorted_eig) * 100:.2f}%)\n")
         f.write(f"99% variance captured by {eigval_99} eigenvalues ({eigval_99 / len(sorted_eig) * 100:.2f}%)\n")
     
-    logger.info(f"Eigenvalue analysis summary written to {output_dir}/eigenvalue_analysis.txt") 
+    logger.info(f"Eigenvalue analysis summary written to {output_dir}/eigenvalue_analysis.txt")
+    
+    # Return the eigenvalues and analysis results for potential logging
+    eigval_analysis = {
+        'eigval_90': int(eigval_90),
+        'eigval_95': int(eigval_95),
+        'eigval_99': int(eigval_99),
+        'total_eigenvalues': len(sorted_eig),
+        'largest_eigenvalue': float(sorted_eig[0]),
+        'smallest_eigenvalue': float(sorted_eig[-1]),
+        'mean_eigenvalue': float(np.mean(sorted_eig)),
+        'median_eigenvalue': float(np.median(sorted_eig))
+    }
+    
+    return sorted_eig, eigval_analysis 

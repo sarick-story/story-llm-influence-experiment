@@ -108,24 +108,11 @@ def run_olmes_evaluation(config):
     
     # Check if OLMES is installed
     if not check_olmes_installed():
-        # Try to install OLMES
-        try:
-            logger.info("OLMES not found, installing...")
-            olmes_dir = config['evaluation']['olmes']['dir']
-            
-            if not os.path.exists(olmes_dir):
-                logger.error(f"OLMES directory not found: {olmes_dir}")
-                logger.error("Please clone the OLMES repository or update the configuration")
-                raise FileNotFoundError(f"OLMES directory not found: {olmes_dir}")
-            
-            install_cmd = ['pip', 'install', '-e', olmes_dir]
-            logger.info(f"Running: {' '.join(install_cmd)}")
-            subprocess.run(install_cmd, check=True)
-            logger.info("OLMES installed successfully")
-        except Exception as e:
-            logger.error(f"Failed to install OLMES: {e}")
-            logger.error("Please install OLMES manually and try again")
-            raise
+        # OLMES should already be installed through requirements.txt
+        logger.error("OLMES command 'oe_eval' not found")
+        logger.error("OLMES should have been installed through requirements.txt")
+        logger.error("Try running: pip install git+https://github.com/allenai/olmes.git")
+        raise FileNotFoundError("OLMES command not found")
     
     # Create OLMES configuration file
     config_path = create_olmes_config(config)

@@ -35,7 +35,11 @@ def generate_completion(model, tokenizer, prompt, max_length=100):
         output = model.generate(
             **inputs,
             max_new_tokens=max_length,
-            do_sample=False,  # Deterministic generation
+            do_sample=True,  # Enable sampling for more diverse outputs
+            temperature=0.8,  # Add some randomness (but not too much)
+            top_p=0.95,      # Nucleus sampling
+            repetition_penalty=1.2,  # Add repetition penalty to reduce loops
+            no_repeat_ngram_size=3,  # Prevent repeating of 3-grams
             pad_token_id=tokenizer.eos_token_id
         )
     

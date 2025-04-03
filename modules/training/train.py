@@ -7,6 +7,7 @@ specified in the configuration.
 
 import os
 import torch
+import wandb
 from transformers import (
     AutoModelForCausalLM, 
     AutoTokenizer, 
@@ -18,6 +19,7 @@ from datasets import load_dataset
 import logging
 import pickle
 import yaml
+from modules.utils.wandb_utils import init_wandb
 
 logger = logging.getLogger(__name__)
 
@@ -72,10 +74,11 @@ def get_dataset(config):
         return results
     
     # Tokenize the dataset
+    num_proc = min(4, os.cpu_count() // 2)  # Use half of available CPU cores, max 4
     tokenized_dataset = dataset.map(
         tokenize_function,
         batched=True,
-        num_proc=4,
+        num_proc=num_proc,
         remove_columns=column_names,
         load_from_cache_file=True,
         desc="Tokenizing dataset"
@@ -98,6 +101,9 @@ def train_model(config):
     
     # Set the seed for reproducibility
     torch.manual_seed(seed)
+    
+    # Initialize wandb with a consistent naming scheme
+    run = init_wandb(config, "train")
     
     logger.info(f"Loading base model: {base_model_name}")
     
@@ -143,6 +149,8 @@ def train_model(config):
         ddp_find_unused_parameters=False,
         dataloader_drop_last=True,
         remove_unused_columns=True,
+        # Use wandb for logging if configured
+        report_to="wandb" if wandb.run is not None else None,
     )
     
     # Create the trainer
@@ -160,7 +168,11 @@ def train_model(config):
     trainer.save_model(model_output_path)
     tokenizer.save_pretrained(model_output_path)
     
+    # Log final training metrics to wandb
+    if wandb.run is not None:
+        wandb.log({
+            "training_completed": True,
+            "model_saved_path": model_output_path
+        })
+    
     return model_output_path 
-
-if __name__ == "__main__":
-    main() 
