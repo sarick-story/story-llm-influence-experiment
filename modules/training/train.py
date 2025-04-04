@@ -25,11 +25,13 @@ logger = logging.getLogger(__name__)
 
 def get_dataset(config):
     """Load and prepare the dataset for training."""
-    dataset_name = config['dataset']['name']
-    num_samples = config['dataset']['num_samples']
+    dataset_config = config['dataset']
+    dataset_name = dataset_config['name']
+    num_samples = dataset_config['num_samples']
     max_length = config['general']['max_length']
+    dataset_format = dataset_config.get('format', 'text') # Default to 'text' if not specified
     
-    logger.info(f"Loading dataset: {dataset_name} (samples: {num_samples})")
+    logger.info(f"Loading dataset: {dataset_name} (samples: {num_samples}, format: {dataset_format})")
     
     if num_samples > 0:
         dataset = load_dataset(dataset_name, split=f"train[:{num_samples}]")
@@ -43,35 +45,94 @@ def get_dataset(config):
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     
-    # Determine the column names to use based on dataset structure
     column_names = dataset.column_names
     
-    # Handle datasets with either 'text' or 'description' as the main content
+    # Define the tokenization function based on dataset structure
     def tokenize_function(examples):
-        # Try to find the appropriate text column
-        text_field = None
-        if 'text' in column_names:
-            text_field = 'text'
-        elif 'description' in column_names:
-            text_field = 'description'
+        input_ids_list = []
+        attention_mask_list = []
+        labels_list = []
+
+        if dataset_format == 'qa':
+            input_col = dataset_config.get('input_column', 'Input')
+            output_col = dataset_config.get('output_column', 'Output')
+            input_label = dataset_config.get('input_label', 'Input') # Using default if not in config
+            output_label = dataset_config.get('output_label', 'Output') # Using default if not in config
+
+            if input_col not in column_names or output_col not in column_names:
+                raise ValueError(f"QA format specified, but columns '{input_col}' or '{output_col}' not found.")
+
+            prompts = [f"{input_label}: {inp} {output_label}: " for inp in examples[input_col]]
+            outputs = [f"{out}{tokenizer.eos_token}" for out in examples[output_col]]
+            full_texts = [p + o for p, o in zip(prompts, outputs)]
+
+            # Tokenize full texts with padding and truncation
+            full_tokenized = tokenizer(
+                full_texts,
+                truncation=True,
+                padding="max_length",
+                max_length=max_length,
+                return_tensors="pt" # Return PyTorch tensors temporarily for easier manipulation
+            )
+            # Convert back to lists for processing
+            input_ids_list = full_tokenized['input_ids'].tolist()
+            attention_mask_list = full_tokenized['attention_mask'].tolist()
+
+            # Tokenize prompts *without* padding/truncation to find their length
+            prompt_tokenized = tokenizer(prompts, add_special_tokens=False) # Avoid extra special tokens in length calc
+
+            for i in range(len(input_ids_list)):
+                prompt_len = len(prompt_tokenized['input_ids'][i])
+                labels = input_ids_list[i].copy()
+
+                # Mask prompt tokens in labels
+                labels[:prompt_len] = [-100] * prompt_len
+
+                # Also mask padding tokens in labels (check attention mask)
+                for j in range(len(labels)):
+                    if attention_mask_list[i][j] == 0:
+                        labels[j] = -100
+                
+                labels_list.append(labels)
+
+        elif dataset_format == 'text':
+            text_col = dataset_config.get('text_column', 'text')
+            if text_col not in column_names:
+                if column_names:
+                    fallback_col = column_names[0]
+                    logger.warning(f"Text column '{text_col}' not found. Using first column '{fallback_col}' as fallback.")
+                    text_col = fallback_col
+                else:
+                    raise ValueError("Dataset has no columns to process for text format.")
+            
+            processed_texts = [text + tokenizer.eos_token for text in examples[text_col]]
+            
+            # Tokenize with padding and truncation
+            tokenized_outputs = tokenizer(
+                processed_texts,
+                truncation=True,
+                padding="max_length",
+                max_length=max_length,
+            )
+            
+            input_ids_list = tokenized_outputs['input_ids']
+            attention_mask_list = tokenized_outputs['attention_mask']
+            
+            # Standard Causal LM: labels are input_ids, mask padding
+            labels_list = [list(ids) for ids in input_ids_list] # Make copies
+            for i in range(len(labels_list)):
+                 for j in range(len(labels_list[i])):
+                     if attention_mask_list[i][j] == 0:
+                         labels_list[i][j] = -100
+
         else:
-            text_field = column_names[0]  # Fall back to the first column
-        
-        # Tokenize the text
-        results = tokenizer(
-            examples[text_field],
-            truncation=True,
-            padding=True,
-            max_length=max_length
-        )
-        
-        # Set up labels correctly (for causal LM)
-        results["labels"] = results["input_ids"].copy()
-        results["labels"] = [
-            [-100 if token == tokenizer.pad_token_id else token for token in label]
-            for label in results["labels"]
-        ]
-        return results
+            raise ValueError(f"Unsupported dataset format: {dataset_format}")
+
+        return {
+            "input_ids": input_ids_list,
+            "attention_mask": attention_mask_list,
+            "labels": labels_list
+        }
     
     # Tokenize the dataset
     num_proc = min(4, os.cpu_count() // 2)  # Use half of available CPU cores, max 4
@@ -79,7 +140,7 @@ def get_dataset(config):
         tokenize_function,
         batched=True,
         num_proc=num_proc,
-        remove_columns=column_names,
+        remove_columns=column_names, # Remove original columns after tokenization
         load_from_cache_file=True,
         desc="Tokenizing dataset"
     )

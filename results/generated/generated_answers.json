@@ -1,26 +1,92 @@
 [
   {
-    "prompt": "Explain quantum computing",
-    "expected_completion": "Quantum computing uses quantum bits to perform computations.",
-    "base_completion": "A: I think the best way to explain quantum computing is to explain the difference between classical and quantum computing.\nClassical computing is a way of computing that is based on the idea of bits.\nA bit is a unit of information that can be either 0 or 1.\nA bit can be represented by a number from 0 to 255.\nA number from 0 to 255 is called a byte.\nA byte can be represented",
-    "finetuned_completion": ".\nQuantum computing is a new computing paradigm that exploits the quantum mechanical properties of matter to perform computationally intensive tasks. Quantum computing is a new computing paradigm that exploits the quantum mechanical properties of matter to perform computationally intensive tasks.\nQuantum computing is a new computing paradigm that exploits the quantum mechanical properties of matter to perform computationally intensive tasks. Quantum computing is a new computing paradigm that exploits the quantum mechanical"
+    "prompt": "What are some examples of isocyanate-reactive compounds used in the production of tin-free polyurethane foam?",
+    "expected_completion": "Isocyanate-reactive compounds used in the production of tin-free polyurethane foam include polyisocyanates and compounds containing isocyanate-reactive hydrogen atoms.",
+    "base_completion": "What happens when you get an excess amount of methacrylic acid in a reactor and have to purge it out?",
+    "finetuned_completion": ""
   },
   {
-    "prompt": "How does machine learning work?",
-    "expected_completion": "Machine learning uses algorithms to find patterns in data.",
-    "base_completion": "How does machine learning work?\nMachine learning is a branch of artificial intelligence that uses algorithms to learn from data. It is a type of artificial intelligence that uses algorithms to learn from data. Machine learning is a type of artificial intelligence that uses algorithms to learn from data.\nMachine learning is a type of artificial intelligence that uses algorithms to learn from data. It is a type of artificial intelligence that uses algorithms to learn from data. Machine learning is a type of artificial intelligence that uses algorithms to learn",
-    "finetuned_completion": "Machine learning is a branch of artificial intelligence that uses statistical methods to learn from data. Machine learning is a subset of artificial intelligence, which is the study of intelligent machines.\nWhat is the difference between machine learning and artificial intelligence?\nArtificial intelligence is a branch of computer science that aims to create intelligent machines. Machine learning is a subset of artificial intelligence that uses statistical methods to learn from data.\nWhat is the difference between machine learning and data mining?\nData"
+    "prompt": "What is the composition of the acrylic copolymer used in the multilayer composite and underlayment for roof assembly?",
+    "expected_completion": "The composition of the acrylic copolymer includes monomer A, monomer B, and monomer C, which are polymerized in an amount from 90-99.5 wt.%, along with a crosslinker in an amount of 0.5-10 wt.%.",
+    "base_completion": "Q:What are some features that distinguish asphalt concrete from mortar bonded overlay?\nA:Asphalt Concrete is a solid material, whereas Mortar Bonded Overlay is a liquid. It has been developed by using specially selected aggregate and coarse gravel to fill up spaces between layers and reinforce them, but it remains soft after being applied on top of existing pavement with no additional surface preparation.",
+    "finetuned_completion": "What is the ratio of polyisocyanate to other components present in the aclylic copolyomer used in a multilayerdo-layer composite and/or as an underlayement fo rroofassembly."
   },
   {
-    "prompt": "Tell me more about protein and drug discovery?",
-    "expected_completion": "The way they interact and their three dimensional structure and the types of molecules which might block or enhance interaction are critical aspects of the science of drug discovery in the pharmaceutical industry.",
-    "base_completion": "A: Protein is the most abundant biomolecule in the body. It is the building block of all living organisms. Proteins are made up of amino acids, which are the building blocks of all proteins. Amino acids are linked together by peptide bonds. The amino acids are joined together by a chemical bond called a peptide bond. The amino acids are joined together by a chemical bond called a pe",
-    "finetuned_completion": "* Proteins are the building blocks of life. They are the most abundant biomolecules in the body and are essential for all cellular functions. Proteins are made up of a long chain of amino acids linked together by peptide bonds. The amino acids are joined together by peptide bonds, which are covalent bonds. The amino acids are linked together by peptide bonds, which are coval"
+    "prompt": "What is the density range of the flame-protected polyurethane foam?",
+    "expected_completion": "The flame-protected polyurethane foam has a density range of 5 to 50 g/L.",
+    "base_completion": "How many gallons of gasoline does a 16\" diameter burner typically burn with a burn rate in excess of 250 CFM at full load?",
+    "finetuned_completion": ""
   },
   {
-    "prompt": "Tell me more about diffraction?",
-    "expected_completion": "All optics contain some level of scattering and diffraction that can swamp the faint signal with stray light from the bright source.",
-    "base_completion": "What is the difference between diffraction and interference?\nWhat is the difference between diffraction and interference?\nWhat is the difference between diffraction and interference?\nWhat is the difference between diffraction and interference?\nWhat is the difference between diffraction and interference?\nWhat is the difference between diffraction and interference?\nWhat is the difference between diffraction and interference?\nWhat is the difference between diffraction and interference?\nWhat is the",
-    "finetuned_completion": "A: Diffraction is the phenomenon of light being scattered by a solid surface. \n\nA: Diffraction is the phenomenon of light being scattered by a solid surface. \n\nA: Diffraction is the phenomenon of light being scattered by a solid surface. \n\nA: Diffraction is the phenomenon of light being scattered by a solid surface. \n\nA: Diffraction is the phenomenon of light being scattered by"
+    "prompt": "What is the purpose of subjecting the material to a free radical source in the method of making the environmentally durable material?",
+    "expected_completion": "The purpose of subjecting the material to a free radical source is to eliminate substantially all functional groups Fc in the material without polymerizing it.",
+    "base_completion": "The presence of free radicals has been reported for many years as an important factor affecting quality and safety. A study by Keller et al.[7] showed that free radical damage resulted from exposure to ozone generated in some atmospheres (10\u201350% concentration). In addition, an additional effect was demonstrated whereby \u03b3-irradiation can produce more free radical. For example, the \u03b3 radiation produced at 8 Gy dose will produce about one",
+    "finetuned_completion": ""
+  },
+  {
+    "prompt": "What is the role of sebacic acid in the catalyst used in the production of polyurethane boots?",
+    "expected_completion": "Sebacic acid is one of the components of the catalyst used in the production of polyurethane boots. It helps enhance the catalytic properties of the tertiary amine.",
+    "base_completion": "Sebacic acids have a significant impact on the process when added as an intermediate to produce polyurea. The main component of the reaction, which causes the formation of polyether, polyester or other polymer from its monomer is ethylene oxide. To do this you need the presence of a strong base such as ammonium hydroxide. So, if there are no active ingredients that react with the reaction medium (in our case polyethers",
+    "finetuned_completion": ""
+  },
+  {
+    "prompt": "How is the structure of the carbamate-functional resin described in the context?",
+    "expected_completion": "The carbamate-functional resin has a hyperbranched or star polyol core, a first chain extension based on a polycarboxylic acid or anhydride, and a second chain extension based on an epoxy containing compound.",
+    "base_completion": "The first stage consists of the formation of a covalent bond between two amino groups and a functional group such as C(O) \u2014 NH2 (carbonate or ester). The second step involves formation of an acidic ester, which can be acylated with either phenolics or alcohols. In addition, we have found that acetylation provides the strongest linkage to functional groups, but there are also examples of weak acry",
+    "finetuned_completion": ""
+  },
+  {
+    "prompt": "What are the components present in the polymer composition for injection molding applications?",
+    "expected_completion": "The polymer composition for injection molding applications comprises at least one thermoplastic polyurethane (TPU) and at least one polymer, which is obtained via free-radical polymerization.",
+    "base_completion": "2.3 Why do we use Injection Molding Processes to make plastic products?",
+    "finetuned_completion": ""
+  },
+  {
+    "prompt": "How long after the application of the coating composition should the sanding of the coated metal substrate be conducted?",
+    "expected_completion": "The sanding of the coated metal substrate should be conducted within one hour from the time the two-component urethane coating composition was applied to the bare, untreated metal substrate.",
+    "base_completion": "How to treat a surface with a high-intensity coating or powder coatings that contain nanomaterials (e.g., Titanium Dioxide, Aluminum Oxides) and other components (e..",
+    "finetuned_completion": ""
+  },
+  {
+    "prompt": "What is the purpose of the structural foam layer in the high performance wall assembly?",
+    "expected_completion": "The structural foam layer serves to couple the rigid foam insulating panel to the frame assembly and to couple the vertical members to the top and bottom members, eliminating the need for fasteners.",
+    "base_completion": "2.5 (c) Increase the thickness of structural and insulation material, such as concrete, to improve the thermal resistance between the inner wall cavity and the wall surface.\n10 Chapter 3 Wall Shear Walls: Structure, Application AWWA Standard NBS - National Building Specifications for Structures 67 CENI-TRAINING PACKAGES FOR THE INTERNATIONAL COUPLING SECTION RE",
+    "finetuned_completion": ""
+  },
+  {
+    "prompt": "What is the average number of reactive hydrogen groups per molecule in the compound with reactive hydrogen atoms?",
+    "expected_completion": "The compound with reactive hydrogen atoms has, on average, at least 1.5 hydrogen groups reactive to isocyanates per molecule.",
+    "base_completion": "A. 5 B. 2 C. 3 D. 16",
+    "finetuned_completion": ""
+  },
+  {
+    "prompt": "What is the main component of the radiation-curable rheological assistant?",
+    "expected_completion": "The main component of the radiation-curable rheological assistant is a compound comprising at least one (meth)acrylate group and at least one urea group.",
+    "base_completion": "23. Why do we need a rheology meter in our daily work process?\n40. What are the disadvantages of using the rheometry tool, and how can they be avoided during use?\n67. How does this equipment help us to determine whether or not we have the right kind of product, based on its performance characteristics and behavior under conditions which may not be representative of reality?",
+    "finetuned_completion": ""
+  },
+  {
+    "prompt": "What is the advantage of using the UV- and heat-curable aqueous polyurethane dispersions for automotive clearcoats?",
+    "expected_completion": "The UV and heatcurable aqueous polyurethane dispersions can be used with advantage for automotive clearcoats.",
+    "base_completion": "Based on numerous years' experience with high-quality adhesives, we can say that a number of benefits are offered by this type of application.\nThe first benefit is the very good water resistance due to their UV curing properties. The second important feature is their high chemical inertness. These characteristics allow them not only to bond well even if they have been applied under different conditions such as humidity or temperature fluctuations but also that they do not cause any",
+    "finetuned_completion": ""
+  },
+  {
+    "prompt": "What is the main component of the clear coat coating composition?",
+    "expected_completion": "The main component of the clear coat coating composition is a vinyl or acrylic polymeric resin.",
+    "base_completion": "41. Why do some clearcoats have a higher VOC content?\n52. How long does it take to cure a vinyl sealant clear coat?",
+    "finetuned_completion": "Answer. The main component in the clearcoat coating compositio..."
+  },
+  {
+    "prompt": "How are low-emission flexible polyurethane foams produced according to the present invention?",
+    "expected_completion": "Low-emission flexible polyurethane foams are produced by reacting polyisocyanates with compounds that have at least two hydrogen atoms reactive toward isocyanate groups and using polyether alcohols prepared from renewable raw materials using DMC catalysts as the reactive compounds.",
+    "base_completion": "The production of Urethane, a petroleum byproduct, requires the use of chemicals such as chlorine, sulfuric acid and hydrogen peroxide. It is well known that high temperatures can be used to produce chemicals from fossil fuels; therefore, it is possible for the manufacturer of a Urethan foam product to use excess heat generated when producing the desired product. Therefore, it may be desirable or necessary to add additional energy",
+    "finetuned_completion": ""
+  },
+  {
+    "prompt": "What is the intended application of the electrodeposition coating composition?",
+    "expected_completion": "The electrodeposition coating composition is intended for coating finishing of motor vehicles, domestic electric appliances, and apparatus.",
+    "base_completion": "10.3 Exploratory studies to identify new potential electrodepositing techniques on metal surfaces, for example by means of ion or atom injection in aqueous solution (in-situ) and/or thermally induced reaction processes, as well as in combination with other functional materials (e.g. metals).\nThe research project will be conducted within the framework of a collaboration between the CNRS (France), the University Paris Diderot - Sorbonne",
+    "finetuned_completion": ""
   }
 ]

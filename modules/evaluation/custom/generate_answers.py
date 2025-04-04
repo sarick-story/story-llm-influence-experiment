@@ -95,6 +95,9 @@ def generate_model_answers(config):
         prompt = prompt_data["prompt"]
         expected_completion = prompt_data["completion"].strip()
         
+        # Get reference completions if available
+        reference_completions = prompt_data.get("reference_completions", [])
+        
         # Generate from base model
         base_completion = generate_completion(base_model, base_tokenizer, prompt)
         
@@ -102,12 +105,18 @@ def generate_model_answers(config):
         finetuned_completion = generate_completion(finetuned_model, finetuned_tokenizer, prompt)
         
         # Store results
-        results.append({
+        result = {
             "prompt": prompt,
             "expected_completion": expected_completion,
             "base_completion": base_completion,
             "finetuned_completion": finetuned_completion
-        })
+        }
+        
+        # Include reference completions if available
+        if reference_completions:
+            result["reference_completions"] = reference_completions
+        
+        results.append(result)
     
     # Save all results to the output file
     logger.info(f"Saving generated answers to {output_file}")

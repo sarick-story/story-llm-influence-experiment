@@ -13,12 +13,21 @@ import matplotlib.pyplot as plt
 import torch
 from datasets import load_dataset
 from kronfluence.analyzer import Analyzer
-from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
-from rouge_score import rouge_scorer
 import logging
 from pathlib import Path
+from sentence_transformers import SentenceTransformer, util
+from bert_score import score as bert_score
 
 logger = logging.getLogger(__name__)
+
+# Initialize sentence transformer model for semantic similarity
+try:
+    semantic_model = SentenceTransformer('all-MiniLM-L6-v2')
+    has_semantic_model = True
+    logger.info("Sentence transformer model loaded successfully for semantic similarity")
+except Exception as e:
+    logger.warning(f"Could not load sentence transformer model: {e}")
+    has_semantic_model = False
 
 def load_generated_answers(config):
     """Load the generated answers from the output file."""
@@ -32,46 +41,55 @@ def load_generated_answers(config):
     
     return answers
 
-def calculate_metrics(hypothesis, reference):
-    """Calculate BLEU and ROUGE scores for a hypothesis and reference."""
-    # BLEU score
-    smoothie = SmoothingFunction().method1
+def calculate_metrics(hypothesis, reference, reference_completions=None):
+    """Calculate BERTScore and semantic similarity for a hypothesis and reference.
     
-    # Split into words for BLEU
-    ref_words = reference.split()
-    hyp_words = hypothesis.split()
-    
-    # Handle empty sequences
-    if len(ref_words) == 0:
-        ref_words = ['']
-    if len(hyp_words) == 0:
-        hyp_words = ['']
-    
-    # Calculate BLEU-1 score
-    try:
-        bleu1 = sentence_bleu([ref_words], hyp_words, weights=(1, 0, 0, 0), smoothing_function=smoothie)
-    except Exception as e:
-        logger.warning(f"Error calculating BLEU-1: {e}")
-        bleu1 = 0.0
-    
-    # Calculate BLEU-2 score if possible
-    try:
-        bleu2 = sentence_bleu([ref_words], hyp_words, weights=(0.5, 0.5, 0, 0), smoothing_function=smoothie)
-    except Exception as e:
-        logger.warning(f"Error calculating BLEU-2: {e}")
-        bleu2 = 0.0
-    
-    # Calculate ROUGE scores
-    scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
-    rouge_scores = scorer.score(reference, hypothesis)
-    
-    return {
-        'bleu1': bleu1,
-        'bleu2': bleu2,
-        'rouge1': rouge_scores['rouge1'].fmeasure,
-        'rouge2': rouge_scores['rouge2'].fmeasure,
-        'rougeL': rouge_scores['rougeL'].fmeasure,
+    If reference_completions is provided, calculates scores against multiple references
+    and returns the maximum score.
+    """
+    # Initialize with default scores
+    best_scores = {
+        'bert_score': 0.0,
+        'semantic_sim': 0.0
     }
+    
+    # Define references to check (original + additional ones if provided)
+    references_to_check = [reference]
+    if reference_completions:
+        references_to_check.extend(reference_completions)
+    
+    # Calculate metrics for each reference and keep the best scores
+    for ref in references_to_check:
+        # Handle empty sequences
+        if len(ref.strip()) == 0:
+            ref = " "
+        if len(hypothesis.strip()) == 0:
+            hypothesis = " "
+        
+        # Calculate BERTScore
+        try:
+            # BERTScore requires lists of references and hypotheses
+            P, R, F1 = bert_score([hypothesis], [ref], lang="en", return_hash=False)
+            # Use F1 as the primary BERTScore metric - convert from tensor to float
+            bert_f1 = F1.item()
+            best_scores['bert_score'] = max(best_scores['bert_score'], bert_f1)
+        except Exception as e:
+            logger.warning(f"Error calculating BERTScore: {e}")
+        
+        # Calculate semantic similarity using sentence transformers if available
+        if has_semantic_model:
+            try:
+                # Encode sentences to get embeddings
+                ref_embedding = semantic_model.encode(ref, convert_to_tensor=True)
+                hyp_embedding = semantic_model.encode(hypothesis, convert_to_tensor=True)
+                
+                # Calculate cosine similarity
+                similarity = util.pytorch_cos_sim(ref_embedding, hyp_embedding).item()
+                best_scores['semantic_sim'] = max(best_scores['semantic_sim'], similarity)
+            except Exception as e:
+                logger.warning(f"Error calculating semantic similarity: {e}")
+    
+    return best_scores
 
 def compute_model_comparison(answers):
     """Compute metrics comparing base and fine-tuned model outputs."""
@@ -83,11 +101,14 @@ def compute_model_comparison(answers):
         base_completion = answer['base_completion']
         finetuned_completion = answer['finetuned_completion']
         
+        # Get reference completions if available
+        reference_completions = answer.get('reference_completions', None)
+        
         # Calculate metrics for base model
-        base_metrics = calculate_metrics(base_completion, expected)
+        base_metrics = calculate_metrics(base_completion, expected, reference_completions)
         
         # Calculate metrics for fine-tuned model
-        finetuned_metrics = calculate_metrics(finetuned_completion, expected)
+        finetuned_metrics = calculate_metrics(finetuned_completion, expected, reference_completions)
         
         # Add to comparison
         comparison.append({
@@ -96,16 +117,10 @@ def compute_model_comparison(answers):
             'expected': expected,
             'base_completion': base_completion,
             'finetuned_completion': finetuned_completion,
-            'base_bleu1': base_metrics['bleu1'],
-            'base_bleu2': base_metrics['bleu2'],
-            'base_rouge1': base_metrics['rouge1'],
-            'base_rouge2': base_metrics['rouge2'],
-            'base_rougeL': base_metrics['rougeL'],
-            'finetuned_bleu1': finetuned_metrics['bleu1'],
-            'finetuned_bleu2': finetuned_metrics['bleu2'],
-            'finetuned_rouge1': finetuned_metrics['rouge1'],
-            'finetuned_rouge2': finetuned_metrics['rouge2'],
-            'finetuned_rougeL': finetuned_metrics['rougeL'],
+            'base_bert_score': base_metrics['bert_score'],
+            'base_semantic_sim': base_metrics.get('semantic_sim', 0.0),
+            'finetuned_bert_score': finetuned_metrics['bert_score'],
+            'finetuned_semantic_sim': finetuned_metrics.get('semantic_sim', 0.0),
         })
     
     return comparison
@@ -250,24 +265,36 @@ def save_model_comparison(comparison, output_dir):
     logger.info(f"Detailed comparison saved to {comparison_path}")
     
     # Create a summary of the metrics
-    metrics = ['bleu1', 'bleu2', 'rouge1', 'rouge2', 'rougeL']
+    metrics = ['bert_score', 'semantic_sim']
     summary = []
     
     for metric in metrics:
         base_metric = f'base_{metric}'
         finetuned_metric = f'finetuned_{metric}'
         
-        base_mean = df[base_metric].mean()
-        finetuned_mean = df[finetuned_metric].mean()
-        improvement = finetuned_mean - base_mean
-        
-        summary.append({
-            'Metric': metric.upper(),
-            'Base Model': base_mean,
-            'Fine-tuned Model': finetuned_mean,
-            'Improvement': improvement,
-            'Relative Improvement (%)': (improvement / base_mean) * 100 if base_mean > 0 else float('inf')
-        })
+        # Check if the metric exists before trying to access it
+        if base_metric in df.columns and finetuned_metric in df.columns:
+            base_mean = df[base_metric].mean()
+            finetuned_mean = df[finetuned_metric].mean()
+            improvement = finetuned_mean - base_mean
+            
+            rel_improvement = float('inf') # Default for division by zero or negative base
+            if base_mean > 0:
+                rel_improvement = (improvement / base_mean) * 100
+            elif base_mean == 0 and improvement > 0:
+                 rel_improvement = float('inf') # Positive improvement from zero
+            elif base_mean == 0 and improvement == 0:
+                rel_improvement = 0.0 # No change from zero
+
+            summary.append({
+                'Metric': metric.upper(),
+                'Base Model': base_mean,
+                'Fine-tuned Model': finetuned_mean,
+                'Improvement': improvement,
+                'Relative Improvement (%)': rel_improvement
+            })
+        else:
+             logger.warning(f"Metric columns {base_metric} or {finetuned_metric} not found in detailed comparison. Skipping for summary.")
     
     # Save summary
     summary_df = pd.DataFrame(summary)
@@ -278,8 +305,9 @@ def save_model_comparison(comparison, output_dir):
     return df, summary_df
 
 def save_influential_examples(influential_examples, output_dir):
-    """Save the influential examples analysis to a text file."""
-    output_path = os.path.join(output_dir, "influential_examples.txt")
+    """Save the influential examples analysis to a Markdown file."""
+    # Change filename extension to .md
+    output_path = os.path.join(output_dir, "influential_examples.md")
     
     with open(output_path, 'w') as f:
         f.write("# Influential Training Examples Analysis\n\n")
@@ -289,46 +317,66 @@ def save_influential_examples(influential_examples, output_dir):
             f.write(f"**Generated completion:** {example['finetuned_completion']}\n\n")
             
             f.write("### Most Influential Training Examples\n\n")
+            # Start Markdown table
+            f.write("| Rank | Score | Example Text (Truncated to 500 chars) |\n")
+            f.write("|------|-------|---------------------------------------|\n")
+            
             for j, infl in enumerate(example['most_influential']):
                 text = infl['text']
-                if len(text) > 500:  # Increased from 100 to 500 characters
+                # Apply 500 character limit
+                if len(text) > 500:
                     text = text[:500] + "..."
                 
-                f.write(f"**{j+1}. Score: {infl['score']:.6f}**\n\n")
-                f.write(f"{text}\n\n")
+                # Clean text for Markdown table (escape pipe characters)
+                text = text.replace('|', '\\|').replace('\n', ' ')
+                
+                # Write table row
+                f.write(f"| {j+1} | {infl['score']:.6f} | {text} |\n")
             
-            f.write("---\n\n")
+            f.write("\n---\n\n") # Separator between prompts
     
     logger.info(f"Influential examples analysis saved to {output_path}")
     return output_path
 
 def create_comparison_chart(summary_df, output_dir):
-    """Create a chart comparing the base and fine-tuned models."""
+    """Create a comparison chart showing base vs fine-tuned model performance."""
     metrics = summary_df['Metric'].tolist()
     base_scores = summary_df['Base Model'].tolist()
     finetuned_scores = summary_df['Fine-tuned Model'].tolist()
     
-    # Create bar chart
-    fig, ax = plt.subplots(figsize=(12, 6))
+    plt.figure(figsize=(10, 6))
     
-    x = np.arange(len(metrics))
-    width = 0.35
+    # Set width of bars
+    bar_width = 0.35
     
-    ax.bar(x - width/2, base_scores, width, label='Base Model')
-    ax.bar(x + width/2, finetuned_scores, width, label='Fine-tuned Model')
+    # Set position of bars on x axis
+    r1 = np.arange(len(metrics))
+    r2 = [x + bar_width for x in r1]
     
-    ax.set_title('Model Performance Comparison')
-    ax.set_ylabel('Score')
-    ax.set_xticks(x)
-    ax.set_xticklabels(metrics)
-    ax.legend()
+    # Create bars
+    plt.bar(r1, base_scores, width=bar_width, label='Base Model', color='royalblue')
+    plt.bar(r2, finetuned_scores, width=bar_width, label='Fine-tuned Model', color='darkorange')
     
+    # Add labels and title
+    plt.xlabel('Metrics')
+    plt.ylabel('Score')
+    plt.title('Model Performance Comparison')
+    plt.xticks([r + bar_width/2 for r in range(len(metrics))], metrics)
+    plt.legend()
+    
+    # Set y-axis limit to 0-1 as both metrics are similarity scores in 0-1 range
+    plt.ylim(0, 1.0)
+    
+    # Add grid lines for better readability
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    
+    # Save main chart
     plt.tight_layout()
-    chart_path = os.path.join(output_dir, "model_comparison_chart.png")
+    chart_path = os.path.join(output_dir, "model_comparison.png")
     plt.savefig(chart_path, dpi=300)
     plt.close()
+    logger.info(f"Model comparison chart saved to {chart_path}")
     
-    logger.info(f"Comparison chart saved to {chart_path}")
     return chart_path
 
 def compare_models(config):
@@ -357,7 +405,7 @@ def compare_models(config):
     influential_examples = analyze_influential_examples(config, answers)
     logger.info("Analyzed influential examples")
     
-    # Save influential examples
+    # Save influential examples (function now saves .md)
     influential_path = save_influential_examples(influential_examples, output_dir)
     
     logger.info("Model comparison and influence analysis complete")
@@ -366,5 +414,5 @@ def compare_models(config):
         'comparison_df': df,
         'summary_df': summary_df,
         'chart_path': chart_path,
-        'influential_path': influential_path
+        'influential_path': influential_path # Path is now to the .md file
     } 

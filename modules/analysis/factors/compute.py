@@ -23,65 +23,98 @@ from .task import LanguageModelingTask
 
 logger = logging.getLogger(__name__)
 
-def get_tokenized_dataset(tokenizer, dataset_name, max_length, num_samples, text_column="text", seed=42):
+def get_tokenized_dataset(tokenizer, config, num_samples_override=None):
     """
-    Get the tokenized dataset with proper format for factor computation
+    Get the tokenized dataset with proper format based on config for factor computation.
     
     Args:
-        tokenizer: The tokenizer to use
-        dataset_name: HF dataset name or local path
-        max_length: Maximum sequence length
-        num_samples: Number of samples to use (0 for all)
-        text_column: Column name containing the text data
-        seed: Random seed for reproducibility
-    
+        tokenizer: The tokenizer to use.
+        config: The full configuration dictionary.
+        num_samples_override: Optional number of samples to override config value.
+
     Returns:
-        tokenized_dataset: HF Dataset
+        tokenized_dataset: HF Dataset.
     """
-    logger.info(f"Loading dataset: {dataset_name}, samples: {num_samples}")
+    dataset_config = config['dataset']
+    dataset_name = dataset_config['name']
+    num_samples = num_samples_override if num_samples_override is not None else dataset_config.get('analysis_samples', 5000)
+    max_length = config['general']['max_length']
+    dataset_format = dataset_config.get('format', 'text') # Default to 'text'
+    seed = config['general'].get('seed', 42)
+    
+    logger.info(f"Loading dataset for factor computation: {dataset_name}, samples: {num_samples}, format: {dataset_format}")
     
     # Set seed for reproducibility
     torch.manual_seed(seed)
     
     # Load raw dataset
-    if num_samples > 0:
-        raw_datasets = load_dataset(dataset_name, split=f"train[:{num_samples}]", cache_dir="./dataset_cache")
-    else:
-        raw_datasets = load_dataset(dataset_name, split="train", cache_dir="./dataset_cache")
-    
-    # Tokenization function
-    def tokenize_function(examples):
-        # Use the specified text column if it exists, otherwise use the first column
-        if text_column in raw_datasets.column_names:
-            col = text_column
-        else:
-            col = raw_datasets.column_names[0]
-            logger.warning(f"Text column '{text_column}' not found, using '{col}' instead")
+    split = f"train[:{num_samples}]" if num_samples > 0 else "train"
+    try:
+        raw_datasets = load_dataset(dataset_name, split=split, cache_dir="./dataset_cache")
+    except Exception as e:
+        logger.error(f"Failed to load dataset {dataset_name} with split '{split}'. Error: {e}")
+        raise
         
-        logger.info(f"Using '{col}' as the text column")
-        texts = examples[col]
+    column_names = raw_datasets.column_names
+
+    # Tokenization function - adapted from train.py but simplified for factor analysis
+    def tokenize_function(examples):
+        processed_texts = []
+        if dataset_format == 'qa':
+            input_col = dataset_config.get('input_column', 'Input')
+            output_col = dataset_config.get('output_column', 'Output')
+            input_label = dataset_config.get('input_label', 'Input') # Using default if not in config
+            output_label = dataset_config.get('output_label', 'Output') # Using default if not in config
+            if input_col not in column_names or output_col not in column_names:
+                raise ValueError(f"QA format specified, but columns '{input_col}' or '{output_col}' not found.")
+            processed_texts = [
+                f"{input_label}: {inp} {output_label}: {out}{tokenizer.eos_token}"
+                for inp, out in zip(examples[input_col], examples[output_col])
+            ]
+        elif dataset_format == 'text':
+            text_col = dataset_config.get('text_column', 'text')
+            if text_col not in column_names:
+                if column_names:
+                    fallback_col = column_names[0]
+                    logger.warning(f"Text column '{text_col}' not found. Using first column '{fallback_col}' as fallback.")
+                    text_col = fallback_col
+                else:
+                    raise ValueError("Dataset has no columns to process for text format.")
+            processed_texts = [text + tokenizer.eos_token for text in examples[text_col]]
+        else:
+            raise ValueError(f"Unsupported dataset format: {dataset_format}")
         
         # Tokenize
         tokenized = tokenizer(
-            texts,
+            processed_texts,
             padding="max_length",
             truncation=True,
             max_length=max_length,
-            return_special_tokens_mask=True,
+            return_attention_mask=True, # Ensure attention mask is returned
         )
         
-        # Set up labels for causal language modeling
+        # Set up labels for causal language modeling (standard for factor computation)
         tokenized["labels"] = tokenized["input_ids"].copy()
+        # Mask padding tokens in labels
+        labels_list = []
+        for i in range(len(tokenized["input_ids"])):
+            label = tokenized["input_ids"][i].copy()
+            for j in range(len(label)):
+                if tokenized["attention_mask"][i][j] == 0:
+                    label[j] = -100 # Mask padding tokens
+            labels_list.append(label)
+        tokenized["labels"] = labels_list
         
         return tokenized
     
     # Apply tokenization in parallel
+    num_proc = min(4, os.cpu_count() // 2) # Use reasonable number of processes
     tokenized_dataset = raw_datasets.map(
         tokenize_function,
         batched=True,
-        num_proc=4,
+        num_proc=num_proc, # Adjusted num_proc
         remove_columns=raw_datasets.column_names,
-        desc="Tokenizing dataset",
+        desc="Tokenizing dataset for factor computation",
     )
     
     return tokenized_dataset
@@ -148,22 +181,12 @@ def compute_factors(config):
         logger.error(f"Error loading model: {e}")
         raise
     
-    # Load dataset for analysis
-    dataset_name = config['dataset']['name']
-    num_samples = config['dataset'].get('analysis_samples', 5000)
-    max_length = config['general']['max_length']
-    text_column = config['dataset'].get('text_column', 'text')
-    
-    logger.info(f"Loading dataset for analysis: {dataset_name} (samples: {num_samples})")
-    
-    # Load and tokenize dataset
+    # Load dataset for analysis using the updated function
+    logger.info(f"Loading dataset for analysis...")
+    # num_samples is read inside get_tokenized_dataset from config['dataset']['analysis_samples']
     tokenized_dataset = get_tokenized_dataset(
         tokenizer, 
-        dataset_name, 
-        max_length, 
-        num_samples, 
-        text_column,
-        seed=seed
+        config # Pass the full config
     )
     
     # Set up format for PyTorch

@@ -33,7 +33,7 @@ def parse_args():
             "scores",           # Compute influence scores
             "evaluate",         # Run the evaluation
             "custom-eval",      # Run just the custom evaluation
-            "olmes-eval",       # Run just the OLMES evaluation
+            "deepeval-eval",    # Run just the DeepEval evaluation
             "help"              # Show help
         ],
         help="Command to execute"
@@ -61,10 +61,10 @@ def run_main_command(config_path, command, *args):
         main_args.append("evaluate")
         main_args.append("--type")
         main_args.append("custom")
-    elif command == "olmes-eval":
+    elif command == "deepeval-eval":
         main_args.append("evaluate")
         main_args.append("--type")
-        main_args.append("olmes")
+        main_args.append("deepeval")
     
     # Add any additional arguments
     main_args.extend(args)
@@ -78,14 +78,14 @@ def print_help():
     LLM Influence Analysis Framework - Simple Wrapper
     
     Commands:
-        train       Train the model from scratch
-        analysis    Run the full analysis pipeline (train, factors, scores, inspection)
-        factors     Compute influence factors for the trained model
-        scores      Compute influence scores for the prompts
-        evaluate    Run both custom and OLMES evaluations
-        custom-eval Run just the custom evaluation
-        olmes-eval  Run just the OLMES evaluation
-        help        Show this help message
+        train           Train the model from scratch
+        analysis        Run the full analysis pipeline (train, factors, scores, inspection)
+        factors         Compute influence factors for the trained model
+        scores          Compute influence scores for the prompts
+        evaluate        Run both custom and DeepEval evaluations
+        custom-eval     Run just the custom evaluation
+        deepeval-eval   Run just the DeepEval evaluation
+        help            Show this help message
     
     Examples:
         python run.py train              # Train the model

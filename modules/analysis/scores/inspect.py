@@ -22,28 +22,60 @@ logger = logging.getLogger(__name__)
 
 def format_example(text, max_length=100):
     """Format a training example for display in the report."""
+    # Replace newlines for better table formatting
+    text = text.replace("\n", " ")
     if len(text) > max_length:
         return text[:max_length] + "..."
     return text
 
 def get_dataset_examples(config, dataset_type='main'):
-    """Load examples from the dataset."""
-    # We now use the same dataset for all operations
-    dataset_name = config['dataset']['name']
-    # Use analysis_samples instead of num_samples for influence analysis
-    num_samples = config['dataset'].get('analysis_samples', config['dataset']['num_samples'])
+    """Load examples from the dataset. Handles different formats."""
+    dataset_config = config['dataset']
+    dataset_name = dataset_config['name']
+    # Use analysis_samples for influence analysis
+    num_samples = dataset_config.get('analysis_samples', dataset_config['num_samples'])
+    dataset_format = dataset_config.get('format', 'text')
     
-    # Get the text column name from config or default to common options
-    text_column = config['dataset'].get('text_column')
-    
-    logger.info(f"Loading dataset examples from: {dataset_name} (samples: {num_samples})")
+    logger.info(f"Loading dataset examples from: {dataset_name} (samples: {num_samples}, format: {dataset_format})")
     
     if num_samples > 0:
         dataset = load_dataset(dataset_name, split=f"train[:{num_samples}]")
     else:
         dataset = load_dataset(dataset_name, split="train")
     
+    # No tokenization needed here, just return the raw dataset
     return dataset
+
+# Helper function to get the correct text representation based on format
+def get_example_text_from_dataset(example, config):
+    dataset_config = config['dataset']
+    dataset_format = dataset_config.get('format', 'text')
+    column_names = list(example.keys())
+
+    if dataset_format == 'qa':
+        input_col = dataset_config.get('input_column', 'Input')
+        output_col = dataset_config.get('output_column', 'Output')
+        if input_col in example and output_col in example:
+            return f"Input: {example[input_col]} Output: {example[output_col]}"
+        else:
+            logger.warning(f"QA format specified, but columns '{input_col}' or '{output_col}' not found in example. Available: {column_names}")
+            # Fallback to trying text/description or first column
+            pass
+            
+    # Fallback for text or if QA columns missing
+    text_col_config = dataset_config.get('text_column')
+    if text_col_config and text_col_config in column_names:
+        return example[text_col_config]
+    elif 'text' in column_names:
+        return example['text']
+    elif 'description' in column_names:
+        return example['description']
+    elif column_names:
+        logger.warning(f"Default text columns not found. Using first column: {column_names[0]}")
+        return example[column_names[0]]
+    else:
+        logger.error("Could not extract text from example with no columns.")
+        return "[Error: Could not extract text]"
 
 def get_prompts(config):
     """Load prompts from the configuration file."""
@@ -89,6 +121,12 @@ def find_scores_file(scores_name):
     all_score_files = glob.glob("**/pairwise_scores.safetensors", recursive=True)
     if all_score_files:
         logger.info(f"Found potential score files: {all_score_files}")
+        # Prioritize scores matching the name if possible
+        for file_path in all_score_files:
+            if scores_name in file_path:
+                logger.info(f"Prioritizing matching score file: {file_path}")
+                return file_path
+        logger.info(f"Using first found score file: {all_score_files[0]}")
         return all_score_files[0]
     
     return None
@@ -102,6 +140,7 @@ def inspect_scores(config):
     """
     scores_name = config['scores']['all_layers_name']
     num_influential = config['scores'].get('num_influential', 10)
+    dataset_config = config['dataset'] # Store dataset config for easier access
     
     # Initialize wandb with a unique run name
     run = init_wandb(config, "inspect_scores")
@@ -130,7 +169,7 @@ def inspect_scores(config):
         logger.error(f"Error loading scores: {e}")
         raise
     
-    # Load dataset examples
+    # Load dataset examples (raw dataset)
     dataset = get_dataset_examples(config)
     
     # Load prompts
@@ -166,67 +205,37 @@ def inspect_scores(config):
             most_influential_idx = np.argsort(-prompt_scores)[:num_influential]
             least_influential_idx = np.argsort(prompt_scores)[:num_influential]
             
-            # Most influential examples (positive influence)
+            # --- Most influential examples (Positive Influence) ---
             f.write("### Most Influential Examples (Positive Influence)\n\n")
             f.write("| Rank | Score | Example |\n")
             f.write("|------|-------|--------|\n")
             
             for rank, idx in enumerate(most_influential_idx):
                 score = prompt_scores[idx]
-                
-                # Get the example text
-                text_field = None
-                column_names = dataset.column_names
-                
-                text_column = config['dataset'].get('text_column')
-                if text_column and text_column in column_names:
-                    # Use the configured text column if it exists
-                    text_field = text_column
-                elif 'text' in column_names:
-                    text_field = 'text'
-                elif 'description' in column_names:
-                    text_field = 'description'
-                else:
-                    text_field = column_names[0]  # Fall back to the first column
-                
-                example_text = dataset[int(idx)][text_field]
-                
+                # Get the example text using the helper function
+                example_data = dataset[int(idx)]
+                example_text = get_example_text_from_dataset(example_data, config)
                 example_formatted = format_example(example_text)
                 f.write(f"| {rank+1} | {score:.6f} | {example_formatted} |\n")
             
             f.write("\n")
             
-            # Least influential examples (negative influence)
+            # --- Least influential examples (Negative Influence) ---
             f.write("### Least Influential Examples (Negative Influence)\n\n")
             f.write("| Rank | Score | Example |\n")
             f.write("|------|-------|--------|\n")
             
             for rank, idx in enumerate(least_influential_idx):
                 score = prompt_scores[idx]
-                
-                # Get the example text
-                text_field = None
-                column_names = dataset.column_names
-                
-                text_column = config['dataset'].get('text_column')
-                if text_column and text_column in column_names:
-                    # Use the configured text column if it exists
-                    text_field = text_column
-                elif 'text' in column_names:
-                    text_field = 'text'
-                elif 'description' in column_names:
-                    text_field = 'description'
-                else:
-                    text_field = column_names[0]  # Fall back to the first column
-                
-                example_text = dataset[int(idx)][text_field]
-                
+                # Get the example text using the helper function
+                example_data = dataset[int(idx)]
+                example_text = get_example_text_from_dataset(example_data, config)
                 example_formatted = format_example(example_text)
                 f.write(f"| {rank+1} | {score:.6f} | {example_formatted} |\n")
             
             f.write("\n")
             
-            # Add a statistical summary
+            # --- Statistical Summary ---
             f.write("### Statistical Summary\n\n")
             f.write(f"- **Maximum influence score:** {np.max(prompt_scores):.6f}\n")
             f.write(f"- **Minimum influence score:** {np.min(prompt_scores):.6f}\n")
@@ -244,38 +253,45 @@ def inspect_scores(config):
     
     logger.info(f"Report generated: {report_file}")
     
-    # Log results to wandb
+    # --- WandB Logging ---
     if wandb.run is not None:
-        # Log summary statistics
-        stats_by_prompt = []
-        for prompt_idx, prompt in enumerate(prompts):
-            prompt_scores = all_scores[prompt_idx]
-            stats = {
-                "prompt_idx": prompt_idx,
-                "prompt_text": prompt["prompt"][:100] + "..." if len(prompt["prompt"]) > 100 else prompt["prompt"],
-                "max_score": float(np.max(prompt_scores)),
-                "min_score": float(np.min(prompt_scores)),
-                "mean_score": float(np.mean(prompt_scores)),
-                "median_score": float(np.median(prompt_scores)),
-                "std_score": float(np.std(prompt_scores))
-            }
-            stats_by_prompt.append(stats)
-        
-        # Create a wandb Table
-        columns = list(stats_by_prompt[0].keys())
-        data = [[row[col] for col in columns] for row in stats_by_prompt]
-        table = wandb.Table(columns=columns, data=data)
-        
-        # Log metrics
-        wandb.log({
-            "scores_report": table,
-            "num_prompts": len(prompts),
-            "num_influential_examples": num_influential,
-            "report_file": report_file,
-            "scores_name": scores_name
-        })
-        
-        # Upload the report file from the correct location
-        wandb.save(report_file)
-    
+        try:
+            # Log summary statistics
+            stats_by_prompt = []
+            for prompt_idx, prompt in enumerate(prompts):
+                prompt_scores = all_scores[prompt_idx]
+                stats = {
+                    "prompt_idx": prompt_idx,
+                    "prompt_text": prompt["prompt"][:100] + "..." if len(prompt["prompt"]) > 100 else prompt["prompt"],
+                    "max_score": float(np.max(prompt_scores)),
+                    "min_score": float(np.min(prompt_scores)),
+                    "mean_score": float(np.mean(prompt_scores)),
+                    "median_score": float(np.median(prompt_scores)),
+                    "std_score": float(np.std(prompt_scores))
+                }
+                stats_by_prompt.append(stats)
+            
+            # Create a wandb Table
+            columns = list(stats_by_prompt[0].keys())
+            data = [[row[col] for col in columns] for row in stats_by_prompt]
+            table = wandb.Table(columns=columns, data=data)
+            
+            # Log metrics
+            wandb.log({
+                "scores_report_summary": table,
+                "num_prompts": len(prompts),
+                "num_influential_examples": num_influential,
+                "report_file_path": report_file,
+                "scores_name": scores_name
+            })
+            
+            # Upload the report file as an artifact
+            report_artifact = wandb.Artifact(f'{scores_name}_report', type='report')
+            report_artifact.add_file(report_file)
+            wandb.log_artifact(report_artifact)
+            logger.info(f"Logged report {report_file} to WandB artifacts.")
+
+        except Exception as e:
+             logger.error(f"Failed to log score inspection results to WandB: {e}")
+
     return report_file 

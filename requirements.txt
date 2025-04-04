@@ -13,3 +13,5 @@ flash-attn
 nvitop
 deepeval
 wandb
+sentence-transformers
+bert-score

@@ -1,12 +1,14 @@
 {
     "base_model": {
         "name": "base_tinyllama",
-        "benchmarks": {}
+        "benchmarks": {
+            "mmlu": 0.2472934472934473
+        }
     },
     "finetuned_model": {
         "name": "finetuned_tinyllama",
         "benchmarks": {
-            "mmlu": 0.24444444444444444
+            "mmlu": 0.24672364672364672
         }
     }
 }

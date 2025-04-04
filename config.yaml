@@ -12,10 +12,13 @@ models:
 
 # Dataset Configuration
 dataset:
-  name: "Trelis/big_patent_sample"
-  num_samples: 14000
-  analysis_samples: 1000  # Number of samples to use for influence analysis (factors & scores)
-  text_column: "description"  # Column name containing the text data
+  name: "XiaoluBELLA/Patent_classification_QA"
+  num_samples: 16000
+  analysis_samples: 16000  # Number of samples to use for influence analysis (factors & scores)
+  format: "qa"  # Specify dataset format: 'qa' or 'text'
+  input_column: "Input" # Column for input text (if format is 'qa')
+  output_column: "Output" # Column for output text (if format is 'qa')
+  text_column: "description"  # Column name containing the text data (used for single-text datasets)
 
 # General Configuration
 general:
@@ -34,6 +37,8 @@ output:
   comparison_results: "results/comparison"
   # Directory for OLMES evaluation results
   olmes_results: "results/olmes"
+  # Directory for DeepEval evaluation results
+  deepeval_results: "results/deepeval"
   # Directory for combined evaluation results
   combined_results: "results/combined"
 
@@ -102,7 +107,7 @@ evaluation:
         n_shots: 5
         tasks: ["PROFESSIONAL_LAW", "BUSINESS_ETHICS", "INTERNATIONAL_LAW"]  # Patent-related categories
     # Only evaluate the fine-tuned model to save time
-    eval_base_model: false
+    eval_base_model: true
     eval_finetuned_model: true
 
 # Wandb Configuration

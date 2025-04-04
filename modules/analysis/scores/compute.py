@@ -26,16 +26,14 @@ logger = logging.getLogger(__name__)
 
 def get_dataset(config, dataset_type='main'):
     """Load and prepare dataset for score computation."""
-    # We now use the same dataset for all operations
-    dataset_name = config['dataset']['name']
-    # Use analysis_samples instead of num_samples for influence score computation
-    num_samples = config['dataset'].get('analysis_samples', config['dataset']['num_samples'])
+    dataset_config = config['dataset']
+    dataset_name = dataset_config['name']
+    # Use analysis_samples for influence score computation
+    num_samples = dataset_config.get('analysis_samples', dataset_config['num_samples'])
     max_length = config['general']['max_length']
+    dataset_format = dataset_config.get('format', 'text') # Default to 'text'
     
-    # Get the text column name from config or default to common options
-    text_column = config['dataset'].get('text_column')
-    
-    logger.info(f"Loading dataset for analysis: {dataset_name} (samples: {num_samples})")
+    logger.info(f"Loading dataset for score analysis: {dataset_name} (samples: {num_samples}, format: {dataset_format})")
     
     if num_samples > 0:
         dataset = load_dataset(dataset_name, split=f"train[:{num_samples}]")
@@ -53,46 +51,66 @@ def get_dataset(config, dataset_type='main'):
     # Determine column names for tokenization
     column_names = dataset.column_names
     
-    # Handle datasets with either 'text' or 'description' as the main content
+    # Tokenization function adapted for different formats
     def tokenize_function(examples):
-        # Try to find the appropriate text column
-        text_field = None
-        if text_column and text_column in column_names:
-            # Use the configured text column if it exists
-            text_field = text_column
-        elif 'text' in column_names:
-            text_field = 'text'
-        elif 'description' in column_names:
-            text_field = 'description'
+        processed_texts = []
+        if dataset_format == 'qa':
+            input_col = dataset_config.get('input_column', 'Input')
+            output_col = dataset_config.get('output_column', 'Output')
+            input_label = dataset_config.get('input_label', 'Input') # Using default if not in config
+            output_label = dataset_config.get('output_label', 'Output') # Using default if not in config
+            if input_col not in column_names or output_col not in column_names:
+                raise ValueError(f"QA format specified, but columns '{input_col}' or '{output_col}' not found.")
+            logger.debug(f"Processing QA format with columns: {input_col}, {output_col}")
+            processed_texts = [
+                f"{input_label}: {inp} {output_label}: {out}{tokenizer.eos_token}"
+                for inp, out in zip(examples[input_col], examples[output_col])
+            ]
+        elif dataset_format == 'text':
+            text_col = dataset_config.get('text_column', 'text')
+            if text_col not in column_names:
+                if column_names:
+                    fallback_col = column_names[0]
+                    logger.warning(f"Text column '{text_col}' not found. Using first column '{fallback_col}' as fallback.")
+                    text_col = fallback_col
+                else:
+                    raise ValueError("Dataset has no columns to process for text format.")
+            logger.debug(f"Processing text format with column: {text_col}")
+            processed_texts = [text + tokenizer.eos_token for text in examples[text_col]]
         else:
-            text_field = column_names[0]  # Fall back to the first column
+            raise ValueError(f"Unsupported dataset format: {dataset_format}")
         
-        logger.info(f"Using '{text_field}' as the text column")
-        
-        # Tokenize the text
+        # Tokenize
         results = tokenizer(
-            examples[text_field],
+            processed_texts,
             truncation=True,
-            padding=True,
-            max_length=max_length
+            padding="max_length", # Use max_length padding
+            max_length=max_length,
+            return_attention_mask=True, # Ensure attention mask is returned
         )
         
         # Set up labels correctly (for causal LM)
         results["labels"] = results["input_ids"].copy()
-        results["labels"] = [
-            [-100 if token == tokenizer.pad_token_id else token for token in label]
-            for label in results["labels"]
-        ]
+        # Mask padding tokens in labels
+        labels_list = []
+        for i in range(len(results["input_ids"])):
+            label = results["input_ids"][i].copy()
+            for j in range(len(label)):
+                if results["attention_mask"][i][j] == 0:
+                    label[j] = -100 # Mask padding tokens
+            labels_list.append(label)
+        results["labels"] = labels_list
+        
         return results
     
     # Tokenize the dataset
     tokenized_dataset = dataset.map(
         tokenize_function,
         batched=True,
-        num_proc=4,
+        num_proc=min(4, os.cpu_count() // 2), # Use reasonable number of processes
         remove_columns=column_names,
         load_from_cache_file=True,
-        desc="Tokenizing dataset"
+        desc=f"Tokenizing dataset ({dataset_format} format)"
     )
     
     tokenized_dataset = tokenized_dataset.with_format("torch")

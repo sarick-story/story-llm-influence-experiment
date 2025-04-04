@@ -1,18 +1,62 @@
 [
   {
-    "prompt": "Explain quantum computing",
-    "completion": " Quantum computing uses quantum bits to perform computations."
+    "prompt": "What are some examples of isocyanate-reactive compounds used in the production of tin-free polyurethane foam?",
+    "completion": "Isocyanate-reactive compounds used in the production of tin-free polyurethane foam include polyisocyanates and compounds containing isocyanate-reactive hydrogen atoms."
   },
   {
-    "prompt": "How does machine learning work?",
-    "completion": " Machine learning uses algorithms to find patterns in data."
+    "prompt": "What is the composition of the acrylic copolymer used in the multilayer composite and underlayment for roof assembly?",
+    "completion": "The composition of the acrylic copolymer includes monomer A, monomer B, and monomer C, which are polymerized in an amount from 90-99.5 wt.%, along with a crosslinker in an amount of 0.5-10 wt.%."
   },
   {
-    "prompt": "Tell me more about protein and drug discovery?",
-    "completion": " The way they interact and their three dimensional structure and the types of molecules which might block or enhance interaction are critical aspects of the science of drug discovery in the pharmaceutical industry."
+    "prompt": "What is the density range of the flame-protected polyurethane foam?",
+    "completion": "The flame-protected polyurethane foam has a density range of 5 to 50 g/L."
   },
   {
-    "prompt": "Tell me more about diffraction?",
-    "completion": "All optics contain some level of scattering and diffraction that can swamp the faint signal with stray light from the bright source."
+    "prompt": "What is the purpose of subjecting the material to a free radical source in the method of making the environmentally durable material?",
+    "completion": "The purpose of subjecting the material to a free radical source is to eliminate substantially all functional groups Fc in the material without polymerizing it."
+  },
+  {
+    "prompt": "What is the role of sebacic acid in the catalyst used in the production of polyurethane boots?",
+    "completion": "Sebacic acid is one of the components of the catalyst used in the production of polyurethane boots. It helps enhance the catalytic properties of the tertiary amine."
+  },
+  {
+    "prompt": "How is the structure of the carbamate-functional resin described in the context?",
+    "completion": "The carbamate-functional resin has a hyperbranched or star polyol core, a first chain extension based on a polycarboxylic acid or anhydride, and a second chain extension based on an epoxy containing compound."
+  },
+  {
+    "prompt": "What are the components present in the polymer composition for injection molding applications?",
+    "completion": "The polymer composition for injection molding applications comprises at least one thermoplastic polyurethane (TPU) and at least one polymer, which is obtained via free-radical polymerization."
+  },
+  {
+    "prompt": "How long after the application of the coating composition should the sanding of the coated metal substrate be conducted?",
+    "completion": "The sanding of the coated metal substrate should be conducted within one hour from the time the two-component urethane coating composition was applied to the bare, untreated metal substrate."
+  },
+  {
+    "prompt": "What is the purpose of the structural foam layer in the high performance wall assembly?",
+    "completion": "The structural foam layer serves to couple the rigid foam insulating panel to the frame assembly and to couple the vertical members to the top and bottom members, eliminating the need for fasteners."
+  },
+  {
+    "prompt": "What is the average number of reactive hydrogen groups per molecule in the compound with reactive hydrogen atoms?",
+    "completion": "The compound with reactive hydrogen atoms has, on average, at least 1.5 hydrogen groups reactive to isocyanates per molecule."
+  },
+  {
+    "prompt": "What is the main component of the radiation-curable rheological assistant?",
+    "completion": "The main component of the radiation-curable rheological assistant is a compound comprising at least one (meth)acrylate group and at least one urea group."
+  },
+  {
+    "prompt": "What is the advantage of using the UV- and heat-curable aqueous polyurethane dispersions for automotive clearcoats?",
+    "completion": "The UV and heatcurable aqueous polyurethane dispersions can be used with advantage for automotive clearcoats."
+  },
+  {
+    "prompt": "What is the main component of the clear coat coating composition?",
+    "completion": "The main component of the clear coat coating composition is a vinyl or acrylic polymeric resin."
+  },
+  {
+    "prompt": "How are low-emission flexible polyurethane foams produced according to the present invention?",
+    "completion": "Low-emission flexible polyurethane foams are produced by reacting polyisocyanates with compounds that have at least two hydrogen atoms reactive toward isocyanate groups and using polyether alcohols prepared from renewable raw materials using DMC catalysts as the reactive compounds."
+  },
+  {
+    "prompt": "What is the intended application of the electrodeposition coating composition?",
+    "completion": "The electrodeposition coating composition is intended for coating finishing of motor vehicles, domestic electric appliances, and apparatus."
   }
 ] 

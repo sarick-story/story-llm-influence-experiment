@@ -1,3 +1,74 @@
+```mermaid
+flowchart TD
+    %% Subgraph: Huggingface
+    subgraph "Huggingface"
+        base_model["TinyLlama 1.1B Model"]:::sourceStyle
+        dataset["Patent QA Dataset"]:::sourceStyle
+    end
+
+    %% Subgraph: Training Module
+    subgraph "Training Module"
+        training["Training Module"]:::trainingStyle
+    end
+
+    %% Subgraph: Influence Analysis
+    subgraph "Influence Analysis"
+        factors["Influence Analysis - Factors"]:::analysisStyle
+        scores["Influence Analysis - Scores"]:::analysisStyle
+    end
+
+    %% Subgraph: Evaluation
+    subgraph "Evaluation"
+        attribution["Attribution Analysis"]:::evaluationStyle
+        deepeval_mmlu["DeepEval - MMLU (LAW, ETHICS, INT'L LAW)"]:::evaluationStyle
+        metrics["ROUGE/BLEU/etc Scores"]:::evaluationStyle
+    end
+
+    %% External Dependencies
+    subgraph "External Dependencies"
+        externalKron["Kronfluence"]:::externalStyle
+        externalDeep["DeepEval Library"]:::externalStyle
+        wandb_service["WandB Service"]:::externalStyle
+    end
+
+    %% Data Sources to Training
+    base_model --> training
+    dataset -- Data Cleaning & Preparation --> training
+
+    %% Core Connections
+    training --> factors
+    training --> scores
+    factors --> scores
+
+    %% Connections to Evaluation
+    factors --> attribution
+    scores --> attribution
+    training --> deepeval_mmlu
+    training --> metrics
+
+    %% External Dependencies Connections
+    factors --- externalKron
+    scores --- externalKron
+    deepeval_mmlu --- externalDeep
+
+    %% WandB Connections (dotted for logging/monitoring)
+    training -.-> wandb_service
+    factors  -.-> wandb_service
+    scores   -.-> wandb_service
+    metrics -.-> wandb_service
+    deepeval_mmlu -.-> wandb_service
+
+    %% Styles
+    classDef configStyle fill:#FFEB3B,stroke:#F57F17,stroke-width:2px;
+    classDef orchestratorStyle fill:#8BC34A,stroke:#33691E,stroke-width:2px;
+    classDef trainingStyle fill:#64B5F6,stroke:#0D47A1,stroke-width:2px;
+    classDef analysisStyle fill:#E1BEE7,stroke:#6A1B9A,stroke-width:2px;
+    classDef evaluationStyle fill:#FFCDD2,stroke:#B71C1C,stroke-width:2px;
+    classDef utilityStyle fill:#CFD8DC,stroke:#37474F,stroke-width:2px;
+    classDef externalStyle fill:#D7CCC8,stroke:#4E342E,stroke-width:2px;
+    classDef sourceStyle fill:#A5D6A7,stroke:#2E7D32,stroke-width:2px;
+```
+
 # Training Process Overview
 
 ## Fine-tuning for Training Data Attribution
