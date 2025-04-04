@@ -21,7 +21,7 @@ flowchart TD
     subgraph "Evaluation"
         attribution["Attribution Analysis"]:::evaluationStyle
         deepeval_mmlu["DeepEval - MMLU (LAW, ETHICS, INT'L LAW)"]:::evaluationStyle
-        metrics["ROUGE/BLEU/etc Scores"]:::evaluationStyle
+        metrics["BERT-Score/Semantic Similarity Scores Scores"]:::evaluationStyle
     end
 
     %% External Dependencies
@@ -211,7 +211,6 @@ The script loads the pre-computed EKFAC factors (specifically the 'lambda matrix
 
 1.  A heatmap of the lambda matrix itself.
 2.  A plot showing the distribution of eigenvalues (sorted from largest to smallest).
-3.  A plot showing the cumulative variance explained by the eigenvalues.
 
 **Interpreting the Results**:
 
@@ -279,3 +278,120 @@ To gauge the model's capabilities on a broader, standardized set of tasks, we us
     *   `BUSINESS_ETHICS`
     *   `INTERNATIONAL_LAW`
     These tasks test the model's understanding in areas pertinent to patent classification and related legal/business concepts. The results are saved in `results/deepeval/`.
+
+#### How the MMLU Benchmark Works
+
+The MMLU benchmark evaluates models using a standardized methodology:
+
+1. **Multiple-Choice Format**: Each question is presented with four possible answers (A, B, C, or D). The model must select the correct option, making this a classification task rather than an open-ended generation task.
+
+2. **Few-Shot Learning**: The benchmark uses a few-shot evaluation approach, where the model is given several example questions and answers (typically 5 examples) before being asked to answer the test question. This tests the model's ability to recognize patterns and adapt to the task format without explicit fine-tuning.
+
+3. **Diverse Subject Areas**: The full MMLU benchmark contains 57 subjects across STEM, humanities, social sciences, and more. We focused on three legally-relevant areas for our evaluation.
+
+4. **Implementation Details**: Our implementation uses the DeepEval framework with 5-shot examples (`n_shots=5`). The model is instructed to output only the letter corresponding to the correct answer. For example, a prompt might look like:
+
+   ```
+   Question: In which case did the Supreme Court establish the "separate but equal" doctrine?
+   A. Plessy v. Ferguson
+   B. Brown v. Board of Education
+   C. Dred Scott v. Sandford
+   D. Korematsu v. United States
+
+   Answer:
+   ```
+
+5. **Scoring**: Performance is measured as simple accuracy – the percentage of questions answered correctly. Since there are four options per question, random guessing would yield approximately 25% accuracy.
+
+The overall MMLU scores from our benchmark summary are shown below:
+
+| Model | Overall MMLU Score |
+|-------|-------------------|
+| Base (TinyLlama 1.1B) | 0.2472934473 |
+| Fine-tuned | 0.2410256410 |
+
+While these scores may appear modest, they're reasonable for a specialized 1.1B parameter model, as the legal and ethical reasoning tasks in MMLU are challenging even for much larger models.
+
+## Model Performance Comparison
+
+After completing the training and influence analysis pipeline, we evaluated our model's performance using two key metrics: BERT-Score and Semantic Similarity. The chart below shows a comparison between the base TinyLlama model and our fine-tuned version.
+
+![Model Performance Comparison](results/combined/model_scores_comparison.png)
+
+### Understanding the Evaluation Metrics
+
+#### BERT-Score
+
+BERT-Score is a text generation evaluation metric that uses the contextual embeddings from BERT to measure the semantic similarity between generated text and a reference. Unlike traditional metrics like BLEU or ROUGE that rely on exact n-gram matching, BERT-Score captures meaning at a deeper level by:
+
+1. **Embedding Generation**: Both the candidate (model-generated) text and reference text are tokenized and processed through a pre-trained BERT model to obtain contextual embeddings for each token.
+2. **Token Matching**: Rather than requiring exact matches, BERT-Score computes cosine similarity between each token in the candidate text and each token in the reference text.
+3. **Greedy Matching**: It uses a greedy approach to align tokens from the candidate with the most similar tokens in the reference.
+4. **F1 Calculation**: The final score combines precision (how much of the candidate text is in the reference) and recall (how much of the reference is covered by the candidate) into an F1 score.
+
+This approach effectively captures paraphrasing, synonyms, and other semantic variations that traditional metrics might miss. In our implementation, we used the `bert-score` package, leveraging its default F1 computation with the English language model.
+
+#### Semantic Similarity Score
+
+The Semantic Similarity metric provides a more holistic measure of overall semantic equivalence between texts. Unlike BERT-Score, which operates on token-level alignments, this metric:
+
+1. **Full Text Embedding**: Uses a sentence transformer model (specifically `all-MiniLM-L6-v2`) to encode entire texts into single, fixed-length vector representations.
+2. **Cosine Similarity**: Calculates the cosine similarity between these sentence embeddings, which measures the angle between the vectors in a high-dimensional space.
+3. **Multiple References**: When multiple reference completions are available for a prompt, it calculates similarity against each one and takes the highest score.
+
+The advantage of this approach is that it captures the overall meaning and intent of the entire text, even when the wording or structure differs significantly. It's particularly useful for evaluating whether the model captures the core concepts required in the answer, regardless of the specific phrasing used.
+
+### Interpreting the Results
+
+As shown in the chart, the fine-tuned model outperforms the base model on both metrics:
+
+- **BERT-Score**: Increased from approximately 0.81 to 0.87, representing around a 7% improvement. This indicates that our fine-tuned model produces text that is semantically closer to the reference answers at the token level.
+- **Semantic Similarity**: Showed a more dramatic improvement from about 0.38 to 0.58, a roughly 53% increase. This suggests the fine-tuned model produces answers that are substantially more aligned with the expected responses in terms of overall meaning.
+
+The more significant gain in Semantic Similarity compared to BERT-Score suggests that while both models improve in token-level semantic matching, the fine-tuning process particularly enhanced the model's ability to capture the overall meaning and intent required by the patent classification tasks, even when the exact phrasing differs.
+
+## Attribution Analysis: Linking Outputs to Training Data
+
+One of the most valuable aspects of our approach is the ability to trace model outputs back to specific training examples that influenced them. This attribution capability provides transparency into the model's decision-making process and helps identify which training examples had the greatest impact on particular predictions.
+
+### Example 1: Patent Chemistry Query
+
+**Prompt:** "What are some examples of isocyanate-reactive compounds used in the production of tin-free polyurethane foam?"
+
+**Generated Completion:** "Examples of iso
+High density fiberboard consists essentially of fiber with a diameter ranging from 0.1 to 4 mm, which are bonded together by means of isophorone diisocyanates and optionally further crosslinking agents."
+
+**Most Influential Training Examples:**
+
+| Rank | Influence Score | Training Example Question | Training Example Answer |
+|------|----------------|--------------------------|------------------------|
+| 1 | 3,244,032 | What are some examples of isocyanate-reactive compounds used in the production of tin-free polyurethane foam? | Examples include polyols (polyether polyols, polyester polyols), polyamines, and hydroxyl-terminated polybutadiene. Water also acts as an isocyanate-reactive compound in foam production, generating carbon dioxide as a blowing agent. |
+| 2 | 1,662,976 | What are the advantages of using alkali metal carboxylates as catalysts in the production of tin-free polyurethane foam? | Alkali metal carboxylates provide several advantages: they're environmentally friendly alternatives to tin catalysts, exhibit strong gelation catalysis, produce foams with excellent physical properties, reduce emissions of volatile organic compounds, and comply with regulatory requirements limiting heavy metals in consumer products. |
+| 3 | 1,589,248 | What is the role of alkali metal carboxylates in the production of tin-free polyurethane foam? | Alkali metal carboxylates serve as catalysts that promote the reaction between isocyanates and polyols, specifically accelerating the gelation reaction. They help maintain proper balance between gelation and blowing reactions, ensuring foam with uniform cell structure and appropriate mechanical properties. |
+
+This complete view of the QA pairs reveals important information: while the model's response references "isophorone diisocyanates" (which relates to isocyanates mentioned in the training data), it doesn't fully capture the specific compounds listed in the most influential training example. Instead, it appears to conflate information about polyurethane foam with information about fiberboard applications. This demonstrates how attribution analysis can help identify potential confusion in the model's knowledge integration.
+
+### Example 2: Construction Materials Query
+
+**Prompt:** "What is the composition of the acrylic copolymer used in the multilayer composite and underlayment for roof assembly?"
+
+**Generated Completion:** "The acrylic copolysurface is a combination of at least one (meth)acrylate component, which can be either an emulsion or a solution, along with a polyisocyanate component."
+
+**Most Influential Training Examples:**
+
+| Rank | Influence Score | Training Example Question | Training Example Answer |
+|------|----------------|--------------------------|------------------------|
+| 1 | 2,156,544 | What is the composition of the acrylic copolymer used in the multilayer composite and underlayment for roof assembly? | The acrylic copolymer consists of a combination of methyl methacrylate (MMA), butyl acrylate (BA), and acrylic acid in a specific ratio, typically 45-55% MMA, 40-50% BA, and 1-5% acrylic acid. It's formulated as a water-based emulsion with a solid content of approximately 50-60%. |
+| 2 | 1,198,336 | What additives can be incorporated into the acrylic copolymer to enhance its performance in roofing applications? | Common additives include UV stabilizers to prevent degradation from sunlight, fungicides to prevent mold growth, plasticizers to improve flexibility in cold temperatures, flame retardants to meet fire codes, and silane coupling agents to improve adhesion to various substrates. |
+| 3 | 982,464 | How is the acrylic copolymer applied in the multilayer roof assembly? | The acrylic copolymer is typically applied as a liquid waterproofing membrane using spray equipment, rollers, or brushes. It's applied at a thickness of 20-30 mils (0.5-0.75mm) and forms a seamless, elastomeric membrane upon curing, which typically takes 24-48 hours depending on temperature and humidity conditions. |
+
+With the complete QA pairs, we can see that while the model's answer incorporates some accurate elements (mentioning "(meth)acrylate component" and emulsion), it also introduces a potentially incorrect association with polyisocyanates, which weren't mentioned in the top influential training examples. This could be the result of interference from other training examples or an attempt to synthesize information from multiple sources.
+
+### Value of Attribution Analysis
+
+This attribution capability offers several benefits:
+
+1. **Transparency**: We can explain why the model provides particular answers by identifying the source training examples.
+2. **Quality Control**: By examining influential examples, we can identify and correct problematic or inaccurate training data.
+3. **Targeted Improvement**: Understanding which examples have the greatest influence allows for more focused dataset enhancement.
+4. **Debugging**: When the model produces incorrect outputs, we can trace back to the source of the error in the training data.
