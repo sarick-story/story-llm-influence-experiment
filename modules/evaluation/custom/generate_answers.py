@@ -93,7 +93,7 @@ def generate_model_answers(config):
     logger.info("Generating answers...")
     for prompt_data in tqdm(prompts, desc="Generating answers"):
         prompt = prompt_data["prompt"]
-        expected_completion = prompt_data["completion"].strip()
+        expected_completion = prompt_data["expected_completion"].strip()
         
         # Get reference completions if available
         reference_completions = prompt_data.get("reference_completions", [])

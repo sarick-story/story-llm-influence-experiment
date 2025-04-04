@@ -8,7 +8,7 @@
     "finetuned_model": {
         "name": "finetuned_tinyllama",
         "benchmarks": {
-            "mmlu": 0.24672364672364672
+            "mmlu": 0.24102564102564103
         }
     }
 }
