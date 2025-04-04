@@ -1,18 +1,28 @@
 # Small Language Model Influence Analysis
 
-This project demonstrates how to train a small language model from scratch and then use [Kronfluence](https://github.com/amorthryn/kronfluence) to analyze the influence of training data on model outputs.
+This project demonstrates how to train a small language model from scratch and then use [Kronfluence](https://github.com/amorthryn/kronfluence) to analyze the influence of training data on model outputs. It also includes a comprehensive evaluation framework that combines custom influence-based metrics with standardized benchmarks from [OLMES](https://github.com/allenai/olmes).
 
 ## Overview
 
-The project consists of several steps:
+The project consists of several components:
 
-1. Train a small GPT-Neo (125M) model on a subset of OpenWebText
-2. Compute influence factors for the trained model 
-3. Calculate influence scores for specific prompts
-4. Visualize and analyze the most influential training examples
-5. Preview the dataset
+1. **Training**: Train a TinyLlama-1b model on a subset of OpenWebText or patent data
+2. **Influence Analysis**:
+   - Compute influence factors for the trained model
+   - Calculate influence scores for specific prompts
+   - Visualize and analyze the most influential training examples
+3. **Model Evaluation**:
+   - Custom evaluation with BLEU, ROUGE metrics and influence analysis
+   - Standardized benchmarks using OLMES (ARC, MMLU, GSM8K, TruthfulQA)
+   - Combined evaluation reporting
+
+## Hardware Requirements
+
+This project is best run on a machine with at least one NVIDIA A100 GPU (or equivalent) due to the memory requirements of training and analyzing the TinyLlama-1b model.
 
 ## Setup
+
+### Install Dependencies
 
 Install the required packages:
 
@@ -20,97 +30,170 @@ Install the required packages:
 pip install -r requirements.txt
 ```
 
-## Step 1: Train the Model
+### OLMES Setup
 
-Train a small language model on a subset of OpenWebText:
-
-```bash
-python train.py
-```
-
-This will train a GPT-Neo-125M model on 1000 examples from OpenWebText and save it to `./tiny_lm_model`.
-
-## Step 2: Compute Influence Factors
-
-Compute the EKFAC influence factors for the trained model:
+OLMES is automatically installed by the requirements.txt file, but if you want to install it manually, you can do:
 
 ```bash
-# For a single GPU
-python fit_factors.py --factors_name tiny_lm_factors --factor_strategy ekfac --factor_batch_size 4
+# Clone the OLMES repository
+git clone https://github.com/allenai/olmes.git
 
-# With torchrun for distributed training
-torchrun --standalone --nnodes=1 --nproc-per-node=1 fit_factors.py \
-    --factors_name tiny_lm_factors \
-    --factor_strategy ekfac \
-    --factor_batch_size 4
+# Install OLMES
+cd olmes
+pip install -e .
+cd ..
 ```
 
-This will compute the factors and save them for later use in influence score calculation.
+## Using tmux for Long-Running Tasks
 
-## Step 2b: Visualize Influence Factors (Optional)
+Since many of the tasks in this project can take hours to complete, it's recommended to use tmux to manage your sessions:
 
-Visualize the computed influence factors to understand their distribution:
+### Installing tmux
+
+On Ubuntu/Debian:
+```bash
+sudo apt-get update && sudo apt-get install -y tmux
+```
+
+On MacOS:
+```bash
+brew install tmux
+```
+
+### Using tmux
+
+1. Start a new tmux session:
+```bash
+tmux new -s llm_influence
+```
+
+2. Run your commands within the tmux session.
+
+3. To detach from the session without stopping it:
+Press `Ctrl+b` followed by `d`
+
+4. To reattach to an existing session:
+```bash
+tmux attach-session -t llm_influence
+```
+
+### Monitoring with nvitop
+
+To monitor GPU usage during your tasks, you can use nvitop. Run the following command in a separate terminal:
 
 ```bash
-python inspect_factors.py --factors_name tiny_lm_factors --layer_num 11
+nvitop --colorful
 ```
 
-This will generate heatmaps and eigenvalue plots for the last layer's MLP modules, showing the distribution of influence factors. You can specify a different layer with the `--layer_num` parameter.
+## Centralized Configuration
 
-## Step 3: Compute Influence Scores
+All configuration parameters are now centralized in the `config.yaml` file. This includes:
 
-Create a file `prompts.json` with your queries (or use the provided sample), then compute influence scores:
+- Model paths and names
+- Dataset configurations
+- Output directories
+- Factor computation settings
+- Evaluation parameters
+
+You can modify this file to customize the behavior of the scripts.
+
+## Running the Framework
+
+### Using the Simple Wrapper
+
+A simple wrapper script `run.py` is provided for common operations:
 
 ```bash
-# For a single GPU
-python compute_scores.py --factors_name tiny_lm_factors --scores_name prompt_scores --query_gradient_rank 64
+# Train the model from scratch
+python run.py train
 
-# With torchrun for distributed training
-torchrun --standalone --nnodes=1 --nproc-per-node=1 compute_scores.py \
-    --factors_name tiny_lm_factors \
-    --scores_name prompt_scores \
-    --query_gradient_rank 64
+# Run the full analysis pipeline (train, factors, scores, inspection)
+python run.py analysis
+
+# Compute influence factors for the trained model
+python run.py factors
+
+# Compute influence scores for the prompts
+python run.py scores
+
+# Run both custom and OLMES evaluations
+python run.py evaluate
+
+# Run just the custom evaluation
+python run.py custom-eval
+
+# Run just the OLMES evaluation
+python run.py olmes-eval
+
+# Use a custom config file
+python run.py --config custom.yaml train
 ```
 
-This will calculate how much each training example influenced the model's responses to your prompts.
+### Using the Main Script Directly
 
-## Step 4: Analyze the Results
-
-Inspect the influence scores to see which training examples had the most impact:
+For more flexibility, you can use the main script directly:
 
 ```bash
-python inspect_scores.py --scores_name prompt_scores --num_influential 5
+# Train the model
+python main.py --config config.yaml train
+
+# Compute influence factors
+python main.py --config config.yaml compute_factors
+
+# Inspect influence factors for a specific layer
+python main.py --config config.yaml inspect_factors --layer 21
+
+# Compute influence scores
+python main.py --config config.yaml compute_scores
+
+# Run evaluation
+python main.py --config config.yaml evaluate --type all/custom/olmes
+
+# Run the full analysis pipeline
+python main.py --config config.yaml run_full_analysis
 ```
-
-This will display the most influential training examples for each of your prompts and save a report in Markdown format.
-
-## Step 5: Preview the Dataset
-
-To preview a few entries from the OpenWebText dataset used for training, you can run the following script:
-
-```python
-from datasets import load_dataset
-
-# Load a small subset of the OpenWebText dataset
-dataset = load_dataset("openwebtext", split="train[:4]")  # Load 4 examples
-
-# Print the first few entries
-for i, entry in enumerate(dataset):
-    print(f"Entry {i+1}:")
-    print(entry["text"])
-    print("\n" + "-"*50 + "\n")
-```
-
-The huggingface datasets package handles the processing of any custom datasets we use: https://github.com/huggingface/datasets
 
 ## Understanding the Results
 
-For each prompt, the analysis will show:
+### Custom Evaluation Results
 
-- The top positive influences (training examples that helped the model produce the given response)
-- The top negative influences (training examples that conflicted with the given response)
+The custom evaluation focuses on comparing the base and fine-tuned models using standard NLP metrics and influence analysis:
 
-The influence score indicates the strength of the connection between a training example and the model's output for a given prompt.
+- `comparison_results/model_comparison.csv`: Detailed comparison of both models
+- `comparison_results/model_comparison_summary.csv`: Summary statistics
+- `comparison_results/model_comparison_chart.png`: Visualization of model performance
+- `comparison_results/influential_examples.txt`: Analysis of training examples that influenced the fine-tuned model's answers
+
+### OLMES Evaluation Results
+
+The OLMES evaluation provides standardized benchmark results:
+
+- `olmes_results/run_*/task_model_scores.json`: Raw benchmark scores
+- Various logs and detailed task results in the run directory
+
+### Combined Results
+
+The combined evaluation provides a comprehensive view:
+
+- `combined_evaluation_results/combined_evaluation_report.md`: Comprehensive report combining both evaluations
+- `combined_evaluation_results/combined_improvements.png`: Visualization comparing improvements across both evaluation methods
+
+## Project Structure
+
+The project is organized into modules:
+
+- `modules/training/`: Model training functionality
+- `modules/analysis/`: Influence analysis (factors and scores)
+- `modules/evaluation/`: Evaluation framework (custom, OLMES, reporting)
+- `main.py`: Central orchestrator for all operations
+- `run.py`: Simple wrapper for common operations
+- `config.yaml`: Centralized configuration
+
+## Customization
+
+- Modify `config.yaml` to customize the behavior of the scripts
+- Add new prompts to `prompts.json` to evaluate different queries
+- Add new tasks to the OLMES configuration in `config.yaml`
 
 ## Implementation Details
 
@@ -119,9 +202,9 @@ The influence score indicates the strength of the connection between a training 
 The project uses custom task definitions in `task.py` to tell Kronfluence how to:
 - Calculate losses for the language model
 - Measure influence on model outputs
-- Track specific modules within the model's architecture
+- Track specific modules within the TinyLlama-1b model's architecture
 
-The implementation focuses on the MLP layers of the GPT-Neo model, which are typically the most influential for language generation tasks.
+The implementation focuses on the MLP layers of the model, which are typically the most influential for language generation tasks.
 
 ### Visualization Tools
 
@@ -133,10 +216,12 @@ These visualizations can help identify patterns in how the model learns from dif
 
 ## Customization
 
-- Modify `prompts.json` to analyze different queries
-- Adjust the number of training examples in `train.py` 
-- Try different factor strategies (`ekfac`, `kfac`, or `diagfisher`)
-- Experiment with different rank values for the query gradient approximation
+You can customize the analysis by:
+
+- Modifying `prompts.json` to analyze different queries
+- Adjusting configuration variables in `run_all_analysis.sh`
+- Trying different factor strategies (`ekfac`, `kfac`, or `diagfisher`)
+- Experimenting with different rank values for the query gradient approximation
 
 ## Requirements
 
@@ -146,4 +231,5 @@ The main requirements are:
 - Transformers
 - Datasets
 - Kronfluence
-- Accelerate 
+- Accelerate
+- nvitop (for monitoring GPU usage) 

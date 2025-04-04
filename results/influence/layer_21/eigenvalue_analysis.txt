@@ -1,0 +1,8 @@
+Total number of eigenvalues: 10
+Largest eigenvalue: 1.000000
+Smallest eigenvalue: 1.000000
+Mean eigenvalue: 1.000000
+Median eigenvalue: 1.000000
+90% variance captured by 9 eigenvalues (90.00%)
+95% variance captured by 10 eigenvalues (100.00%)
+99% variance captured by 10 eigenvalues (100.00%)

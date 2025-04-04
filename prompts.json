@@ -1,22 +1,18 @@
 [
   {
-    "prompt": "What is inflation?",
-    "completion": " Inflation is the rate at which prices increase over time."
-  },
-  {
-    "prompt": "Who was the first president of the United States?",
-    "completion": " George Washington was the first president."
-  },
-  {
     "prompt": "Explain quantum computing",
     "completion": " Quantum computing uses quantum bits to perform computations."
   },
   {
-    "prompt": "What is the capital of France?",
-    "completion": " Paris is the capital of France."
-  },
-  {
     "prompt": "How does machine learning work?",
     "completion": " Machine learning uses algorithms to find patterns in data."
+  },
+  {
+    "prompt": "Tell me more about protein and drug discovery?",
+    "completion": " The way they interact and their three dimensional structure and the types of molecules which might block or enhance interaction are critical aspects of the science of drug discovery in the pharmaceutical industry."
+  },
+  {
+    "prompt": "Tell me more about diffraction?",
+    "completion": "All optics contain some level of scattering and diffraction that can swamp the faint signal with stray light from the bright source."
   }
 ] 

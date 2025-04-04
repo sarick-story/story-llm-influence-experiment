@@ -1,0 +1,113 @@
+# Main Configuration for LLM Influence Analysis & Evaluation
+# ==============================================
+
+# Model Configuration
+models:
+  base:
+    name: "TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T"
+    id: "base_tinyllama"
+  finetuned:
+    path: "./tinyllama_1b_model"
+    id: "finetuned_tinyllama"
+
+# Dataset Configuration
+dataset:
+  name: "Trelis/big_patent_sample"
+  num_samples: 14000
+  analysis_samples: 1000  # Number of samples to use for influence analysis (factors & scores)
+  text_column: "description"  # Column name containing the text data
+
+# General Configuration
+general:
+  max_length: 512
+  prompts_file: "prompts.json"
+  seed: 42
+  use_flash_attention: false
+
+# Output Directories
+output:
+  # Base directory for all influence analysis results
+  base_dir: "results"
+  # Directory for influence analysis results (factors, scores)
+  influence_results: "results/influence"
+  # Directory for model comparison results
+  comparison_results: "results/comparison"
+  # Directory for OLMES evaluation results
+  olmes_results: "results/olmes"
+  # Directory for combined evaluation results
+  combined_results: "results/combined"
+
+# Factor Analysis Configuration
+factors:
+  name: "tinyllama_1b_factors"
+  all_layers_name: "tinyllama_1b_factors_all_layers"
+  strategy: "ekfac"
+  batch_size: 48
+  #run nproc and then update this with the number of cores minus a few
+  num_workers: 16
+  # Directory where factors will be saved (relative to influence_results)
+  output_dir: "factors"
+  # Default layer to use for factor inspection (last layer in TinyLlama)
+  inspection_layer: 21
+  # Visualization settings for factor inspection
+  visualization:
+    clip_percentile: 99.5
+    cmap: "coolwarm"
+  layers:
+    mode: "all"  # Options: "all", "specific", "range"
+    # If mode is "specific", specify the exact layers to analyze
+    specific: [0, 6, 11]  
+    # If mode is "range", specify the start and end layers (inclusive)
+    range: 
+      start: 0
+      end: 11
+      step: 1  # Optional step size for taking every nth layer
+  # Performance options for factor computation
+  performance_options:
+    covariance_module_partitions: 2
+    lambda_module_partitions: 4
+    covariance_data_partitions: 4
+    lambda_data_partitions: 4
+    eigendecomposition_dtype: "float64"  # torch.float64
+    module_partitions: 1
+    dtype: "bfloat16"  # torch.bfloat16
+
+# Score Computation Configuration
+scores:
+  name: "tinyllama_prompt_scores"
+  all_layers_name: "tinyllama_prompt_scores_all_layers"
+  generated_name: "tinyllama_generated_scores"
+  query_gradient_rank: 64
+  train_batch_size: 4
+  num_influential: 10
+  # Directory where scores will be saved (relative to influence_results)
+  output_dir: "scores"
+
+# Evaluation Configuration
+evaluation:
+  # Directory for storing generated answers
+  generated_dir: "results/generated"
+  # Files for model generated answers
+  generated_answers_file: "results/generated/generated_answers.json"
+  finetuned_answers_file: "results/generated/finetuned_generated_answers.json"
+
+  # DeepEval Benchmark Configuration
+  deepeval:
+    output_dir: "results/deepeval"
+    batch_size: 64  # Use a larger batch size for faster processing
+    max_memory: "75GiB"  # Use more of the A100's 80GiB memory
+    # Using tasks parameter instead of subcategories for MMLU
+    benchmarks:
+      - name: "MMLU"
+        n_shots: 5
+        tasks: ["PROFESSIONAL_LAW", "BUSINESS_ETHICS", "INTERNATIONAL_LAW"]  # Patent-related categories
+    # Only evaluate the fine-tuned model to save time
+    eval_base_model: false
+    eval_finetuned_model: true
+
+# Wandb Configuration
+wandb:
+  entity: "sarick-shah-pip-labs"
+  project: "influence-llm"
+  name: null
+  tags: ["tinyllama", "influence-analysis"] 

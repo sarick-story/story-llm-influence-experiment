@@ -1,0 +1,12 @@
+{
+    "base_model": {
+        "name": "base_tinyllama",
+        "benchmarks": {}
+    },
+    "finetuned_model": {
+        "name": "finetuned_tinyllama",
+        "benchmarks": {
+            "mmlu": 0.24444444444444444
+        }
+    }
+}
