@@ -75,6 +75,19 @@ flowchart TD
 
 We use fine-tuning for training data attribution because it allows us to directly measure how specific training examples influence the model's predictions. By fine-tuning a pre-trained model on our dataset, we can track the gradient information and influence factors that connect individual training examples to the model's behavior. This approach enables us to attribute model outputs to specific training inputs, providing transparency into which examples had the most significant impact on particular predictions.
 
+## Data Preparation and Cleaning
+
+For our patent classification dataset, data preparation includes:
+
+1. **Text normalization**: Standardizing text format, case, and special characters
+2. **Tokenization**: Converting raw text into tokens the model can process
+3. **Length adjustment**: Truncating or padding sequences
+4. **Format conversion**: Structuring data into question-answer format for the model
+
+[Dataset](https://huggingface.co/datasets/XiaoluBELLA/Patent_classification_QA)
+
+[Model](https://huggingface.co/TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T)
+
 ## Key Hyperparameters and Their Significance
 
 When fine-tuning a language model for data attribution, several hyperparameters significantly affect training efficiency and the quality of attribution analysis:
@@ -93,19 +106,6 @@ We also track:
 - **Learning rate changes** (especially with schedulers like cosine with restarts)
 - **GPU memory usage** to ensure efficient resource utilization
 - **Training speed** (samples processed per second)
-
-## Train-Test Split
-
-The dataset is divided into training and testing portions to ensure the model can generalize to unseen data. Based on our configuration, we use approximately 16,000 samples from the patent classification dataset, and another 7000 samples for evaluation. This split helps us verify that the model isn't simply memorizing the training data but learning generalizable patterns.
-
-## Data Preparation and Cleaning
-
-For our patent classification dataset, data preparation includes:
-
-1. **Text normalization**: Standardizing text format, case, and special characters
-2. **Tokenization**: Converting raw text into tokens the model can process
-3. **Length adjustment**: Truncating or padding sequences
-4. **Format conversion**: Structuring data into question-answer format for the model
 
 ## Training Time and Resources
 
@@ -163,6 +163,20 @@ training_args = TrainingArguments(
 )
 ```
 
+### Training Run Visualization
+
+The training process was monitored using Weights & Biases (WandB), allowing us to track key metrics in real-time. You can view the detailed training run at [Weights & Biases Dashboard](https://wandb.ai/sarick-shah-pip-labs/influence-llm/runs/i83j2b3u?nw=nwusersarickshah).
+
+Below are visualizations from the training process:
+
+![Training Metrics Visualization](train.png)
+
+The visualization above shows the progression of loss and learning rate throughout the training process, demonstrating how the model gradually improved as training progressed.
+
+![Additional Training Metrics](train2.png)
+
+This second visualization provides additional insights into the model's training dynamics, showing metrics such as gradient norms and optimization statistics that help verify the stability of the training process.
+
 ## Influence Factor Computation using Kronfluence
 
 Once the model is fine-tuned, we need to understand how individual training examples influence its behavior. Ideally, we'd measure influence by seeing how much a test prediction changes if we remove a specific training example and retrain. This is computationally infeasible.
@@ -181,11 +195,11 @@ The **Hessian** ($\mathcal{H}$) measures the curvature or sensitivity of the mod
 
 ### EKFAC: Approximating the Inverse Hessian
 
-We use the [Kronfluence library](https://github.com/pomonam/kronfluence), which employs the **Eigenvalue-corrected Kronecker-Factored Approximate Curvature (EKFAC)** method to approximate the crucial $\mathcal{H}^{-1}$ term efficiently [\[Gro23S\]](https://transferlab.ai/pills/2023/llm-influences-with-ekfac/).
+We use the [Kronfluence library](https://github.com/pomonam/kronfluence), which employs the **Eigenvalue-corrected Kronecker-Factored Approximate Curvature (EKFAC)** method to approximate the crucial $\mathcal{H}^{-1}$ term efficiently.
 
-1.  **Kronecker-Factored Approximation (K-FAC)**: This first step simplifies the problem by assuming gradients are independent across different layers and making further approximations within layers. This allows approximating the Hessian (specifically, the Fisher Information Matrix, which is equivalent for our loss function) with smaller, block-diagonal matrices based on Kronecker products. These smaller blocks are much easier to handle computationally [\[Mar15O\]](https://transferlab.ai/pills/2023/llm-influences-with-ekfac/).
+1.  **Kronecker-Factored Approximation (K-FAC)**: This first step simplifies the problem by assuming gradients are independent across different layers and making further approximations within layers. This allows approximating the Hessian (specifically, the Fisher Information Matrix, which is equivalent for our loss function) with smaller, block-diagonal matrices based on Kronecker products. These smaller blocks are much easier to handle computationally.
 
-2.  **Eigenvalue Correction (E)**: K-FAC's approximations can introduce errors. The "E" in EKFAC corrects for this by computing the eigenvalues (which represent the magnitude of curvature in different directions) of the K-FAC blocks and adjusting them to better match the eigenvalues of the true, full Hessian. This significantly improves the approximation's accuracy without needing the full Hessian [\[Geo18F\]](https://transferlab.ai/pills/2023/llm-influences-with-ekfac/).
+2.  **Eigenvalue Correction (E)**: K-FAC's approximations can introduce errors. The "E" in EKFAC corrects for this by computing the eigenvalues (which represent the magnitude of curvature in different directions) of the K-FAC blocks and adjusting them to better match the eigenvalues of the true, full Hessian. This significantly improves the approximation's accuracy without needing the full Hessian.
 
 ### The `fit_all_factors` Process
 
@@ -260,12 +274,21 @@ Recall the influence function formula:
 
 After fine-tuning and analyzing influence factors/scores, the final step is to evaluate the model's performance and understand how the training data influences specific outputs. Our pipeline uses two main evaluation approaches orchestrated by `main.py` when running the `evaluate --type all` command.
 
+### Model Completion Comparison for Sample Prompts
+
+Below is a comparison of completions between the base TinyLlama model and our fine-tuned model for several patent-related queries:
+
+| Prompt | Expected Completion | Base Model Completion | Fine-tuned Model Completion |
+|--------|---------------------|----------------------|----------------------------|
+| What are some examples of isocyanate-reactive compounds used in the production of tin-free polyurethane foam? | Isocyanate-reactive compounds used in the production of tin-free polyurethane foam include polyisocyanates and compounds containing isocyanate-reactive hydrogen atoms. | The term "isocyanates" refers to a class of organic molecules that contains two nitrogen atoms bonded together. They're commonly found in plastics, adhesives and sealants, but they can also be made into industrial chemicals. Some common examples include acrylate polymers (aka acrylic acid), glycidyl ethers (acid esters) like MDI or diethylenetriamine penta | Examples of iso\nHigh density fiberboard consists essentially of fiber with a diameter ranging from 0.1 to 4 mm, which are bonded together by means of isophorone diisocyanates and optionally further crosslinking agents. |
+| What is the composition of the acrylic copolymer used in the multilayer composite and underlayment for roof assembly? | The composition of the acrylic copolymer includes monomer A, monomer B, and monomer C, which are polymerized in an amount from 90-99.5 wt.%, along with a crosslinker in an amount of 0.5-10 wt.%. | 2. Which was first discovered in 1940 by Herman P Kroger (1895 – 1 September 1… Read More › | The acrylic copolysurface is a combination of at least one (meth)acrylate component, which can be either an emulsion or a solution, along with a polyisocyanate component. |
+| What is the density range of the flame-protected polyurethane foam? | The flame-protected polyurethane foam has a density range of 5 to 50 g/L. | A: The density of flameproof polyurea will vary depending on factors such as product grade, manufacturing process and weather. In general, the higher a grade number or an OEK 8170 certified material, the more resistant it is to fire, but there may be some variation in its thickness due to this factor. It's always best to check the documentation supplied with your purchased item for specific details about how dense it is before specifying its use | The flameprotective polyurethanefoam has a density ranging from 20 to 145 kg/m3. |
+
 ### 1. Custom Evaluation and Influence Analysis
 
 This part focuses on comparing the fine-tuned model against the base model using our specific prompts and analyzing the influence scores related to these prompts.
 
 *   **Answer Generation**: The `modules.evaluation.custom.generate_model_answers` script takes the prompts defined in `prompts.json`, feeds them to both the base (`TinyLlama/...`) and the fine-tuned (`./tinyllama_1b_model`) models, and saves their generated answers (likely to `results/generated/`).
-*   **Comparison**: The `modules.evaluation.custom.compare_models` script then likely analyzes these generated answers. While not explicitly calculating metrics like ROUGE or BLEU in the current structure, this step is where such comparisons could be made to assess fluency, relevance, or correctness improvements in the fine-tuned model compared to the base model. It can also leverage the influence scores (computed specifically for generated answers using `scores.compute_scores --use_generated`) to correlate specific training examples with particular generated outputs or errors.
 
 ### 2. Standardized Benchmarking with DeepEval and MMLU
 
