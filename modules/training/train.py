@@ -62,7 +62,19 @@ def get_dataset(config):
             if input_col not in column_names or output_col not in column_names:
                 raise ValueError(f"QA format specified, but columns '{input_col}' or '{output_col}' not found.")
 
-            prompts = [f"{input_label}: {inp} {output_label}: " for inp in examples[input_col]]
+            # Construct the prompt marker sequence that ends the input part
+            # Ensure there's a space before the output label if it doesn't start with one
+            prompt_marker = f" {output_label}: " if not output_label.startswith(' ') else f"{output_label}: "
+            logger.info(f"Using prompt marker for label masking: '{prompt_marker}'")
+            # Tokenize the marker sequence *without* adding special tokens
+            marker_tokens = tokenizer(prompt_marker, add_special_tokens=False)["input_ids"]
+            marker_len = len(marker_tokens)
+            if marker_len == 0:
+                 logger.warning(f"Prompt marker '{prompt_marker}' tokenized to empty sequence. Check marker/tokenizer.")
+
+            # Construct proper prompts and full texts
+            # FIXED: Use a format that doesn't include output_label in the prompt to avoid confusion
+            prompts = [f"{inp}" for inp in examples[input_col]]
             outputs = [f"{out}{tokenizer.eos_token}" for out in examples[output_col]]
             full_texts = [p + o for p, o in zip(prompts, outputs)]
 
@@ -78,17 +90,36 @@ def get_dataset(config):
             input_ids_list = full_tokenized['input_ids'].tolist()
             attention_mask_list = full_tokenized['attention_mask'].tolist()
 
-            # Tokenize prompts *without* padding/truncation to find their length
-            prompt_tokenized = tokenizer(prompts, add_special_tokens=False) # Avoid extra special tokens in length calc
-
+            # --- Robust Label Masking --- 
             for i in range(len(input_ids_list)):
-                prompt_len = len(prompt_tokenized['input_ids'][i])
-                labels = input_ids_list[i].copy()
-
-                # Mask prompt tokens in labels
-                labels[:prompt_len] = [-100] * prompt_len
-
-                # Also mask padding tokens in labels (check attention mask)
+                current_input_ids = input_ids_list[i]
+                labels = current_input_ids.copy()
+                
+                # FIXED: Rather than looking for a marker that may not exist in the tokenized form,
+                # we'll tokenize the prompt separately and use its length
+                prompt_tokenized = tokenizer(
+                    prompts[i], 
+                    add_special_tokens=True, 
+                    return_tensors="pt"
+                )
+                prompt_length = prompt_tokenized['input_ids'].shape[1]
+                
+                # Mask everything up to the end of the prompt (everything up to prompt_length)
+                # This will train the model to predict only the completion, not repeat the prompt
+                if prompt_length > 0:
+                    labels[:prompt_length-1] = [-100] * (prompt_length-1)
+                    
+                    # Log some examples of the label masking for debugging
+                    if i < 3:
+                        logger.info(f"Example {i}:")
+                        logger.info(f"  Prompt: {prompts[i]}")
+                        logger.info(f"  Output: {outputs[i]}")
+                        logger.info(f"  Prompt length (tokens): {prompt_length}")
+                        logger.info(f"  Masked labels: {labels[:prompt_length+10]}...")
+                else:
+                    logger.warning(f"Zero prompt length for example {i}. Check tokenization.")
+                    
+                # Also mask padding tokens using the attention mask (essential)
                 for j in range(len(labels)):
                     if attention_mask_list[i][j] == 0:
                         labels[j] = -100
