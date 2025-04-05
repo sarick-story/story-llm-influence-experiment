@@ -291,7 +291,7 @@ This part focuses on comparing the fine-tuned model against the base model using
 *   **Answer Generation**: The `modules.evaluation.custom.generate_model_answers` script takes the prompts defined in `prompts.json`, feeds them to both the base (`TinyLlama/...`) and the fine-tuned (`./tinyllama_1b_model`) models, and saves their generated answers (likely to `results/generated/`).
 
 ### 2. Standardized Benchmarking with DeepEval and MMLU
-
+[DeepEval](https://docs.confident-ai.com/docs/getting-started)
 To gauge the model's capabilities on a broader, standardized set of tasks, we use the [DeepEval framework](https://docs.confident-ai.com/).
 
 *   **DeepEval**: An open-source library designed for evaluating Large Language Models (LLMs) across various metrics and benchmarks. It provides tools to assess aspects like reasoning, knowledge, and safety.
