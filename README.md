@@ -1,6 +1,11 @@
 # Small Language Model Influence Analysis
 
-This project demonstrates how to train a small language model from scratch and then use [Kronfluence](https://github.com/amorthryn/kronfluence) to analyze the influence of training data on model outputs. It also includes a comprehensive evaluation framework that combines custom influence-based metrics with standardized benchmarks from [OLMES](https://github.com/allenai/olmes).
+This project demonstrates how to train a small language model from scratch
+and then use [Kronfluence](https://github.com/amorthryn/kronfluence) to
+analyze the influence of training data on model outputs.
+
+It also includes a comprehensive evaluation framework
+that combines custom influence-based metrics with standardized benchmarks from [OLMES](https://github.com/allenai/olmes).
 
 ## Overview
 
@@ -51,11 +56,13 @@ Since many of the tasks in this project can take hours to complete, it's recomme
 ### Installing tmux
 
 On Ubuntu/Debian:
+
 ```bash
 sudo apt-get update && sudo apt-get install -y tmux
 ```
 
 On MacOS:
+
 ```bash
 brew install tmux
 ```
@@ -63,6 +70,7 @@ brew install tmux
 ### Using tmux
 
 1. Start a new tmux session:
+
 ```bash
 tmux new -s llm_influence
 ```
@@ -70,9 +78,10 @@ tmux new -s llm_influence
 2. Run your commands within the tmux session.
 
 3. To detach from the session without stopping it:
-Press `Ctrl+b` followed by `d`
+   Press `Ctrl+b` followed by `d`
 
 4. To reattach to an existing session:
+
 ```bash
 tmux attach-session -t llm_influence
 ```
@@ -200,6 +209,7 @@ The project is organized into modules:
 ### Custom Task Definition
 
 The project uses custom task definitions in `task.py` to tell Kronfluence how to:
+
 - Calculate losses for the language model
 - Measure influence on model outputs
 - Track specific modules within the TinyLlama-1b model's architecture
@@ -209,6 +219,7 @@ The implementation focuses on the MLP layers of the model, which are typically t
 ### Visualization Tools
 
 The `inspect_factors.py` script provides visualization tools to analyze:
+
 - The lambda matrices that encode influence relationships
 - The distribution of eigenvalues that determine influence strength
 
@@ -232,4 +243,4 @@ The main requirements are:
 - Datasets
 - Kronfluence
 - Accelerate
-- nvitop (for monitoring GPU usage) 
+- nvitop (for monitoring GPU usage)

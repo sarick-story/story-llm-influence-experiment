@@ -13,7 +13,7 @@ models:
 # Dataset Configuration
 dataset:
   name: "Trelis/big_patent_sample"
-  num_samples: 14000
+  num_samples: 100000
   analysis_samples: 1000  # Number of samples to use for influence analysis (factors & scores)
   text_column: "description"  # Column name containing the text data
 
@@ -22,7 +22,8 @@ general:
   max_length: 512
   prompts_file: "prompts.json"
   seed: 42
-  use_flash_attention: false
+  # Enable if hardware/environment supports it (Ampere+ GPU, flash-attn installed)
+  use_flash_attention: true
 
 # Output Directories
 output:
@@ -110,4 +111,4 @@ wandb:
   entity: "sarick-shah-pip-labs"
   project: "influence-llm"
   name: null
-  tags: ["tinyllama", "influence-analysis"] 
+  tags: ["tinyllama", "influence-analysis"]

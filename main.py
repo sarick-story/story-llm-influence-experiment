@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 LLM Influence Analysis & Evaluation Framework - Main Orchestrator
 
